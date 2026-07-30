@@ -1,22 +1,26 @@
 import { NextResponse } from "next/server";
-import { marketHub } from "@/lib/core/market";
+import { candleService } from "@/lib/services/candleService";
 
 export async function GET() {
   try {
-    const ticker = await marketHub.getTicker("BTCUSDT");
+    const candles =
+      await candleService.getCandles(
+        "BTCUSDT",
+        "1h"
+      );
 
     return NextResponse.json({
       success: true,
-      provider: "MarketHub",
-      data: ticker,
+      data: candles,
     });
+
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to fetch market data",
+        message: "Failed to fetch candles",
       },
       {
         status: 500,

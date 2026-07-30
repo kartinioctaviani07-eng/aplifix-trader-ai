@@ -1,19 +1,89 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 
+type AnalysisResponse = {
+  success: boolean;
+  data: {
+    symbol: string;
+
+    technical: {
+      indicators: {
+        trend: string;
+      };
+
+      technicalScore: number;
+    };
+
+    decision: {
+      action: string;
+      confidence: number;
+      reason: string[];
+    };
+  };
+};
+
 export default function SignalCard() {
+  const [analysis, setAnalysis] =
+    useState<AnalysisResponse["data"] | null>(null);
+
+  useEffect(() => {
+    async function loadAnalysis() {
+      try {
+        const response =
+          await fetch("/api/analysis", {
+            cache: "no-store",
+          });
+
+        const result: AnalysisResponse =
+          await response.json();
+
+        if (result.success) {
+          setAnalysis(result.data);
+        }
+
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    loadAnalysis();
+
+    const interval =
+      setInterval(loadAnalysis, 60000);
+
+    return () =>
+      clearInterval(interval);
+
+  }, []);
+
+  if (!analysis) {
+    return (
+      <Card title="🤖 AI Trading Signal">
+        <p className="text-slate-400">
+          Loading...
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card title="🤖 AI Trading Signal">
 
       <div>
+
         <h2 className="text-2xl font-bold text-white">
-          BTC / USDT
+          {analysis.symbol}
         </h2>
 
         <div className="mt-4">
-          <Badge text="BUY" />
+          <Badge
+            text={analysis.decision.action}
+          />
         </div>
-
 
         <div className="mt-6">
 
@@ -22,63 +92,53 @@ export default function SignalCard() {
           </p>
 
           <div className="mt-2 h-3 rounded-full bg-slate-800">
+
             <div
               className="h-3 rounded-full bg-emerald-500"
-              style={{ width: "87%" }}
+              style={{
+                width: `${analysis.decision.confidence}%`,
+              }}
             />
+
           </div>
 
           <p className="mt-2 text-right text-sm text-emerald-400">
-            87%
+            {analysis.decision.confidence}%
           </p>
 
         </div>
 
+        <div className="mt-6">
 
-        <div className="mt-6 grid grid-cols-2 gap-4">
+          <p className="text-sm text-slate-400">
+            Trend
+          </p>
 
-          <div>
-            <p className="text-sm text-slate-400">
-              Trend
-            </p>
-            <p className="font-semibold text-white">
-              Bullish
-            </p>
-          </div>
-
-
-          <div>
-            <p className="text-sm text-slate-400">
-              Risk
-            </p>
-            <p className="font-semibold text-yellow-400">
-              Medium
-            </p>
-          </div>
-
-
-          <div>
-            <p className="text-sm text-slate-400">
-              Entry
-            </p>
-            <p className="font-semibold text-white">
-              $68,500
-            </p>
-          </div>
-
-
-          <div>
-            <p className="text-sm text-slate-400">
-              Target
-            </p>
-            <p className="font-semibold text-emerald-400">
-              $71,000
-            </p>
-          </div>
-
+          <p className="font-semibold text-white">
+            {analysis.technical.indicators.trend}
+          </p>
 
         </div>
 
+        <div className="mt-6">
+
+          <p className="text-sm text-slate-400">
+            AI Reason
+          </p>
+
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+
+            {analysis.decision.reason.map(
+              (item) => (
+                <li key={item}>
+                  {item}
+                </li>
+              )
+            )}
+
+          </ul>
+
+        </div>
 
       </div>
 

@@ -43,19 +43,5 @@ export function getMarketData(): Candle[] {
       low: 69500,
       close: 70320,
     },
-    {
-      time: "2026-07-25",
-      open: 70320,
-      high: 70950,
-      low: 70000,
-      close: 70780,
-    },
-    {
-      time: "2026-07-26",
-      open: 70780,
-      high: 71200,
-      low: 70550,
-      close: 71010,
-    },
   ];
 }
