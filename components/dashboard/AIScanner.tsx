@@ -5,165 +5,248 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 
-type AnalysisResponse = {
-  success: boolean;
-  data: {
-    symbol: string;
+type Analysis = {
+  provider: string;
+  symbol: string;
+  candles: number;
 
-    technical: {
-      indicators: {
-        trend: string;
-      };
-
-      technicalScore: number;
+  technical: {
+    indicators: {
+      trend: string;
     };
 
-    decision: {
-      action: string;
-      confidence: number;
-      reason: string[];
+    rsi: {
+      value: number;
+      status: string;
     };
+
+    macd: {
+      macd: number;
+      trend: string;
+    };
+
+    atr: {
+      value: number;
+      volatility: string;
+    };
+
+    technicalScore: number;
+  };
+
+  marketScores: {
+    newsScore: number;
+    sentimentScore: number;
+    newsProvider: string;
+    totalNews: number;
+  };
+
+  risk: {
+    riskScore: number;
+    level: string;
+  };
+
+  decision: {
+    action: string;
+    confidence: number;
+  };
+
+  signal: {
+    signal: string;
+    strength: string;
+    confidence: number;
+    marketCondition: string;
+    summary: string;
+    reasons: string[];
   };
 };
 
+
 export default function AIScanner() {
+
   const [analysis, setAnalysis] =
-    useState<AnalysisResponse["data"] | null>(null);
+    useState<Analysis | null>(null);
+
 
   useEffect(() => {
-    async function loadAnalysis() {
-      try {
-        const response =
-          await fetch("/api/analysis", {
+
+    async function load() {
+
+      const res =
+        await fetch(
+          "/api/analysis",
+          {
             cache: "no-store",
-          });
+          }
+        );
 
-        const result: AnalysisResponse =
-          await response.json();
+      const json =
+        await res.json();
 
-        if (result.success) {
-          setAnalysis(result.data);
-        }
-
-      } catch (error) {
-        console.error(error);
+      if (json.success) {
+        setAnalysis(json.data);
       }
+
     }
 
-    loadAnalysis();
 
-    const interval =
-      setInterval(loadAnalysis, 60000);
+    load();
+
+
+    const timer =
+      setInterval(
+        load,
+        60000
+      );
+
 
     return () =>
-      clearInterval(interval);
+      clearInterval(timer);
+
 
   }, []);
 
+
   if (!analysis) {
+
     return (
-      <Card title="🤖 AI Market Scanner">
-        <p className="text-slate-400">
-          Loading...
-        </p>
+      <Card title="🤖 AI Scanner">
+        Loading...
       </Card>
     );
+
   }
 
+
   return (
-    <Card title="🤖 AI Market Scanner">
+
+    <Card title="🤖 AI Scanner">
 
       <div className="space-y-5">
 
-        <div>
 
+        <div>
           <p className="text-sm text-slate-400">
             Trading Pair
           </p>
 
-          <h2 className="text-2xl font-bold text-white">
+          <h2 className="text-2xl font-bold">
             {analysis.symbol}
           </h2>
+        </div>
+
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+
+          <span>Provider</span>
+          <span className="text-right">
+            {analysis.provider}
+          </span>
+
+
+          <span>Candles</span>
+          <span className="text-right">
+            {analysis.candles}
+          </span>
+
+
+          <span>Trend</span>
+          <span className="text-right">
+            {analysis.technical.indicators.trend}
+          </span>
+
+
+          <span>RSI</span>
+          <span className="text-right">
+            {analysis.technical.rsi.value}
+          </span>
+
+
+          <span>MACD</span>
+          <span className="text-right">
+            {analysis.technical.macd.macd}
+          </span>
+
+
+          <span>ATR</span>
+          <span className="text-right">
+            {analysis.technical.atr.value}
+          </span>
+
+
+          <span>Volatility</span>
+          <span className="text-right">
+            {analysis.technical.atr.volatility}
+          </span>
+
+
+          <span>Technical Score</span>
+          <span className="text-right">
+            {analysis.technical.technicalScore}
+          </span>
 
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
 
-          <div>
+        <div className="border-t border-slate-800 pt-4">
 
-            <p className="text-sm text-slate-400">
-              Market Trend
-            </p>
+          <p className="text-sm text-slate-400">
+            AI Signal
+          </p>
 
-            <p className="font-bold text-emerald-400">
-              {analysis.technical.indicators.trend}
-            </p>
-
-          </div>
-
-          <div>
-
-            <p className="text-sm text-slate-400">
-              Technical Score
-            </p>
-
-            <p className="font-bold text-cyan-400">
-              {analysis.technical.technicalScore}
-            </p>
-
-          </div>
+          <Badge
+            text={analysis.signal.signal}
+          />
 
         </div>
+
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+
+          <span>Strength</span>
+          <span className="text-right">
+            {analysis.signal.strength}
+          </span>
+
+
+          <span>Confidence</span>
+          <span className="text-right text-emerald-400">
+            {analysis.signal.confidence}%
+          </span>
+
+
+          <span>Market Condition</span>
+          <span className="text-right">
+            {analysis.signal.marketCondition}
+          </span>
+
+        </div>
+
 
         <div>
 
           <p className="text-sm text-slate-400">
-            AI Recommendation
+            AI Summary
           </p>
 
-          <div className="mt-2">
-            <Badge
-              text={analysis.decision.action}
-            />
-          </div>
-
-        </div>
-
-        <div>
-
-          <p className="text-sm text-slate-400">
-            AI Confidence
-          </p>
-
-          <div className="mt-2 h-3 rounded-full bg-slate-800">
-
-            <div
-              className="h-3 rounded-full bg-emerald-500"
-              style={{
-                width: `${analysis.decision.confidence}%`,
-              }}
-            />
-
-          </div>
-
-          <p className="mt-2 text-right text-emerald-400">
-            {analysis.decision.confidence}%
+          <p className="mt-2">
+            {analysis.signal.summary}
           </p>
 
         </div>
 
+
         <div>
 
           <p className="text-sm text-slate-400">
-            Analysis
+            AI Reason
           </p>
 
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+          <ul className="list-disc pl-5">
 
-            {analysis.decision.reason.map(
-              (reason) => (
-                <li key={reason}>
-                  {reason}
+            {analysis.signal.reasons.map(
+              (item) => (
+                <li key={item}>
+                  {item}
                 </li>
               )
             )}
@@ -172,8 +255,51 @@ export default function AIScanner() {
 
         </div>
 
+
+        <div className="border-t border-slate-800 pt-4">
+
+          <p>
+            📰 News Score:
+            {" "}
+            {analysis.marketScores.newsScore}
+          </p>
+
+          <p>
+            Sentiment:
+            {" "}
+            {analysis.marketScores.sentimentScore}
+          </p>
+
+          <p>
+            Provider:
+            {" "}
+            {analysis.marketScores.newsProvider}
+          </p>
+
+        </div>
+
+
+        <div className="border-t border-slate-800 pt-4">
+
+          <p>
+            🛡 Risk Score:
+            {" "}
+            {analysis.risk.riskScore}
+          </p>
+
+          <p>
+            Level:
+            {" "}
+            {analysis.risk.level}
+          </p>
+
+        </div>
+
+
       </div>
 
     </Card>
+
   );
+
 }

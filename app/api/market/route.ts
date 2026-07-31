@@ -1,26 +1,69 @@
-import { NextResponse } from "next/server";
-import { marketHub } from "@/lib/core/market";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-export async function GET() {
+import {
+  marketHub,
+} from "@/lib/core/market";
+
+
+export async function GET(
+  request: NextRequest
+) {
+
   try {
-    const ticker = await marketHub.getTicker("BTCUSDT");
+
+    const symbol =
+      request.nextUrl.searchParams.get(
+        "symbol"
+      ) ?? "BTCUSDT";
+
+
+    const ticker =
+      await marketHub.getTicker(
+        symbol
+      );
+
 
     return NextResponse.json({
+
       success: true,
-      provider: "MarketHub",
-      data: ticker,
+
+      provider:
+        "MarketHub",
+
+      data:
+        ticker,
+
     });
-  } catch (error) {
-    console.error(error);
+
+
+  } catch(error) {
+
+
+    console.error(
+      "Market API Error:",
+      error
+    );
+
 
     return NextResponse.json(
+
       {
-        success: false,
-        message: "Failed to fetch market data",
+        success:false,
+
+        message:
+          "Failed to fetch market data",
       },
+
       {
-        status: 500,
+        status:500,
       }
+
     );
+
+
   }
+
 }

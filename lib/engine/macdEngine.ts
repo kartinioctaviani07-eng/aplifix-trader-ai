@@ -2,32 +2,36 @@ export type MACDResult = {
   macd: number;
   signal: number;
   histogram: number;
-
-  trend:
-    | "BULLISH"
-    | "BEARISH"
-    | "NEUTRAL";
+  trend: "BULLISH" | "BEARISH" | "NEUTRAL";
 };
 
-function calculateEMA(
+function ema(
   values: number[],
   period: number
 ): number {
 
-  if (values.length === 0) {
+  if (values.length === 0)
     return 0;
+
+  const multiplier =
+    2 / (period + 1);
+
+  let result =
+    values[0];
+
+  for (
+    let i = 1;
+    i < values.length;
+    i++
+  ) {
+
+    result =
+      values[i] * multiplier +
+      result * (1 - multiplier);
+
   }
 
-  const slice =
-    values.slice(-period);
-
-  const total =
-    slice.reduce(
-      (sum, value) => sum + value,
-      0
-    );
-
-  return total / slice.length;
+  return result;
 }
 
 export function calculateMACD(
@@ -35,16 +39,10 @@ export function calculateMACD(
 ): MACDResult {
 
   const ema12 =
-    calculateEMA(
-      closes,
-      12
-    );
+    ema(closes, 12);
 
   const ema26 =
-    calculateEMA(
-      closes,
-      26
-    );
+    ema(closes, 26);
 
   const macd =
     ema12 - ema26;
@@ -60,31 +58,26 @@ export function calculateMACD(
     | "BEARISH"
     | "NEUTRAL";
 
-  if (macd > 0) {
+  if (macd > 0)
     trend = "BULLISH";
-  } else if (macd < 0) {
+  else if (macd < 0)
     trend = "BEARISH";
-  } else {
+  else
     trend = "NEUTRAL";
-  }
 
   return {
+
     macd:
-      Number(
-        macd.toFixed(2)
-      ),
+      Number(macd.toFixed(2)),
 
     signal:
-      Number(
-        signal.toFixed(2)
-      ),
+      Number(signal.toFixed(2)),
 
     histogram:
-      Number(
-        histogram.toFixed(2)
-      ),
+      Number(histogram.toFixed(2)),
 
     trend,
+
   };
 
 }

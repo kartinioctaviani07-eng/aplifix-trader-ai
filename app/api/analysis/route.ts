@@ -1,23 +1,48 @@
-import { NextResponse } from "next/server";
-import { analysisService } from "@/lib/services/analysisService";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import {
+  analysisCacheService,
+} from "@/lib/services/analysisCacheService";
 
 
-export async function GET() {
+export async function GET(
+  request: NextRequest
+) {
+
   try {
 
+
+    const symbol =
+      request.nextUrl.searchParams.get(
+        "symbol"
+      ) ?? "BTCUSDT";
+
+
+
     const result =
-      await analysisService.analyze(
-        "BTCUSDT"
+      await analysisCacheService.getAnalysis(
+        symbol
       );
 
 
+
     return NextResponse.json({
+
       success: true,
+
+      symbol,
+
       data: result,
+
     });
 
 
-  } catch (error) {
+
+  } catch(error) {
+
 
     console.error(
       "ANALYSIS ERROR:",
@@ -26,16 +51,25 @@ export async function GET() {
 
 
     return NextResponse.json(
+
       {
-        success: false,
+
+        success:false,
+
         message:
           error instanceof Error
-            ? error.message
-            : "Unknown error",
+          ? error.message
+          : "Unknown error",
+
       },
+
       {
-        status: 500,
+        status:500,
       }
+
     );
+
+
   }
+
 }

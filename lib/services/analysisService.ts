@@ -1,14 +1,29 @@
-import { candleService } from "./candleService";
+import "@/lib/core/market/candleIndex";
+
+import { candleHub } from "@/lib/core/market/CandleHub";
+
 import { technicalAnalysisService } from "./technicalAnalysisService";
+
+import { marketScoreService } from "./marketScoreService";
+
 import { makeDecision } from "@/lib/engine/decisionEngine";
 
+import { calculateRisk } from "@/lib/engine/riskEngine";
+
+import { generateSignal } from "@/lib/engine/signalEngine";
+
+import { aiMemory } from "@/lib/engine/aiMemory";
+
 class AnalysisService {
+
   async analyze(
     symbol: string = "BTCUSDT"
   ) {
+
     const candles =
-      await candleService.getCandles(
-        symbol
+      await candleHub.getCandles(
+        symbol,
+        "1h"
       );
 
     const technical =
@@ -16,26 +31,94 @@ class AnalysisService {
         candles
       );
 
+    const scores =
+      await marketScoreService.getScores(
+        symbol
+      );
+
+    const risk =
+      calculateRisk({
+        volatility: 2,
+        stopLossPercent: 3,
+        positionSizePercent: 5,
+      });
+
     const decision =
       makeDecision({
+
         technicalScore:
           technical.technicalScore,
 
-        newsScore: 50,
-        fundamentalScore: 50,
-        macroScore: 50,
-        sentimentScore: 50,
-        riskScore: 50,
+        newsScore:
+          scores.newsScore,
+
+        fundamentalScore:
+          scores.fundamentalScore,
+
+        macroScore:
+          scores.macroScore,
+
+        sentimentScore:
+          scores.sentimentScore,
+
+        riskScore:
+          risk.riskScore,
+
       });
 
-    return {
+    const signal =
+      generateSignal(
+        technical,
+        risk,
+        decision
+      );
+
+    aiMemory.add({
+
+      id:
+        crypto.randomUUID(),
+
       symbol,
+
+      action:
+        decision.action,
+
+      confidence:
+        decision.confidence,
+
+      reason:
+        signal.reasons,
+
+      timestamp:
+        Date.now(),
+
+    });
+
+    return {
+
+      provider:
+        candleHub.getLastProvider(),
+
+      symbol,
+
+      candles:
+        candles.length,
 
       technical,
 
+      marketScores:
+        scores,
+
+      risk,
+
       decision,
+
+      signal,
+
     };
+
   }
+
 }
 
 export const analysisService =

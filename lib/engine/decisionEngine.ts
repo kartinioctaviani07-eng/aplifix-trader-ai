@@ -5,9 +5,12 @@ export type DecisionInput = {
   macroScore: number;
   sentimentScore: number;
   riskScore: number;
+  learningScore?: number;
 };
 
+
 export type DecisionResult = {
+
   action:
     | "BUY"
     | "SELL"
@@ -19,55 +22,162 @@ export type DecisionResult = {
   totalScore: number;
 
   reason: string[];
+
 };
+
+
 
 export function makeDecision(
   input: DecisionInput
 ): DecisionResult {
 
+
+  const weights = {
+
+    technical: 0.40,
+    news: 0.10,
+    fundamental: 0.10,
+    macro: 0.10,
+    sentiment: 0.10,
+    risk: 0.15,
+    learning: 0.05,
+
+  };
+
+
+
+  const learningScore =
+    input.learningScore ?? 50;
+
+
+
   const totalScore =
     Math.round(
-      (
-        input.technicalScore +
-        input.newsScore +
-        input.fundamentalScore +
-        input.macroScore +
-        input.sentimentScore +
-        input.riskScore
-      ) / 6
+
+      input.technicalScore *
+        weights.technical +
+
+      input.newsScore *
+        weights.news +
+
+      input.fundamentalScore *
+        weights.fundamental +
+
+      input.macroScore *
+        weights.macro +
+
+      input.sentimentScore *
+        weights.sentiment +
+
+      input.riskScore *
+        weights.risk +
+
+      learningScore *
+        weights.learning
+
     );
 
-  const reason: string[] = [];
 
-  if (input.technicalScore >= 70) {
+
+  const reason:string[] = [];
+
+
+
+  if(
+    input.technicalScore >= 80
+  ){
+
     reason.push(
-      "Technical trend mendukung."
+      "Technical trend bullish kuat."
     );
+
+  }
+  else if(
+    input.technicalScore >= 60
+  ){
+
+    reason.push(
+      "Technical trend mulai mendukung."
+    );
+
+  }
+  else if(
+    input.technicalScore <= 30
+  ){
+
+    reason.push(
+      "Technical trend masih bearish."
+    );
+
+  }
+  else {
+
+    reason.push(
+      "Technical belum memberikan konfirmasi."
+    );
+
   }
 
-  if (input.newsScore >= 70) {
+
+
+  if(
+    input.newsScore >= 70
+  ){
+
     reason.push(
-      "Sentimen berita positif."
+      "News sentiment positif."
     );
+
   }
 
-  if (input.fundamentalScore >= 70) {
+
+  if(
+    input.newsScore <= 30
+  ){
+
     reason.push(
-      "Fundamental aset kuat."
+      "News sentiment negatif."
     );
+
   }
 
-  if (input.macroScore < 50) {
+
+
+  if(
+    input.riskScore >= 80
+  ){
+
     reason.push(
-      "Kondisi ekonomi global perlu diperhatikan."
+      "Risk management aman."
     );
+
   }
 
-  if (input.riskScore < 50) {
+
+
+  if(
+    input.riskScore < 50
+  ){
+
     reason.push(
-      "Risiko perdagangan cukup tinggi."
+      "Risiko perdagangan tinggi."
     );
+
   }
+
+
+
+  if(
+    learningScore >= 70
+  ){
+
+    reason.push(
+      "AI learning history mendukung keputusan."
+    );
+
+  }
+
+
 
   let action:
     | "BUY"
@@ -75,21 +185,54 @@ export function makeDecision(
     | "HOLD"
     | "WAIT";
 
-  if (totalScore >= 80) {
+
+
+  if(
+    input.technicalScore >= 75 &&
+    totalScore >= 75
+  ){
+
     action = "BUY";
-  } else if (totalScore >= 65) {
-    action = "HOLD";
-  } else if (totalScore >= 50) {
-    action = "WAIT";
-  } else {
-    action = "SELL";
+
   }
 
+  else if(
+    input.technicalScore <= 30 &&
+    totalScore <= 40
+  ){
+
+    action = "SELL";
+
+  }
+
+  else if(
+    totalScore >= 60
+  ){
+
+    action = "HOLD";
+
+  }
+
+  else {
+
+    action = "WAIT";
+
+  }
+
+
+
   return {
+
     action,
-    confidence: totalScore,
+
+    confidence:
+      totalScore,
+
     totalScore,
+
     reason,
+
   };
+
 
 }

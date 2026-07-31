@@ -30,20 +30,34 @@ function calculateEMA(
   }
 
 
-  const slice =
-    closes.slice(-period);
+  const multiplier =
+    2 / (period + 1);
 
 
-  const total =
-    slice.reduce(
-      (sum, value) =>
-        sum + value,
-      0
-    );
+  let ema =
+    closes[0];
+
+
+  for (
+    let i = 1;
+    i < closes.length;
+    i++
+  ) {
+
+    ema =
+      (
+        closes[i] * multiplier
+      ) +
+      (
+        ema *
+        (1 - multiplier)
+      );
+
+  }
 
 
   return Number(
-    (total / slice.length).toFixed(2)
+    ema.toFixed(2)
   );
 }
 
@@ -67,12 +81,16 @@ export function calculateIndicators(
 
 
   return {
+
     ema20,
+
     ema50,
 
     trend:
       ema20 >= ema50
         ? "Bullish"
         : "Bearish",
+
   };
+
 }

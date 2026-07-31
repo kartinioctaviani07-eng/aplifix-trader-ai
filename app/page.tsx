@@ -9,76 +9,108 @@ import MarketCard from "@/components/dashboard/MarketCard";
 import Watchlist from "@/components/dashboard/Watchlist";
 import MarketChart from "@/components/dashboard/MarketChart";
 import AIScanner from "@/components/dashboard/AIScanner";
+import AIBrainCard from "@/components/dashboard/AIBrainCard";
+import AIFocusSelector from "@/components/dashboard/AIFocusSelector";
+
+import {
+  AIFocusProvider,
+} from "@/context/AIFocusContext";
 
 
 export default function Home() {
+
   return (
-    <Layout>
 
-      <Header />
+    <AIFocusProvider>
 
-      <div className="flex">
+      <Layout>
 
-        <Sidebar />
-
-
-        <main className="flex-1 min-h-screen bg-slate-950 p-8">
+        <Header />
 
 
-          <h1 className="text-3xl font-bold text-white">
-            APLIFIX Trader AI
-          </h1>
+        <div className="flex">
 
-          <p className="mt-2 text-slate-400">
-            AI Powered Trading Dashboard
-          </p>
+          <Sidebar />
 
 
+          <main className="flex-1 min-h-screen bg-slate-950 p-8">
 
-          <div className="mt-8 grid grid-cols-3 gap-6">
 
-            <BalanceCard />
+            <h1 className="text-3xl font-bold text-white">
+              APLIFIX Trader AI
+            </h1>
 
-            <ProfitCard />
 
-            <SignalCard />
-
-          </div>
+            <p className="mt-2 text-slate-400">
+              AI Powered Trading Dashboard
+            </p>
 
 
 
-          <div className="mt-8">
+            <div className="mt-8 grid grid-cols-3 gap-6">
 
-            <MarketChart />
+              <BalanceCard />
 
-          </div>
+              <ProfitCard />
 
+              <SignalCard />
 
-
-          <div className="mt-8 grid grid-cols-2 gap-6">
-
-            <AIScanner />
-
-            <Watchlist />
-
-          </div>
+            </div>
 
 
 
-          <div className="mt-8">
+            <div className="mt-8">
 
-            <MarketCard />
+              <AIFocusSelector />
 
-          </div>
-
-
-
-        </main>
+            </div>
 
 
-      </div>
+
+            <div className="mt-8">
+
+              <MarketChart />
+
+            </div>
 
 
-    </Layout>
+
+            <div className="mt-8 grid grid-cols-2 gap-6">
+
+
+              <AIScanner />
+
+
+              <AIBrainCard />
+
+
+              <Watchlist />
+
+
+            </div>
+
+
+
+            <div className="mt-8">
+
+              <MarketCard />
+
+            </div>
+
+
+
+          </main>
+
+
+        </div>
+
+
+      </Layout>
+
+
+    </AIFocusProvider>
+
+
   );
+
 }

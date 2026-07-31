@@ -10,9 +10,16 @@ import {
   calculateMACD,
 } from "@/lib/engine/macdEngine";
 
-import { Candle } from "./candleService";
+import {
+  calculateATR,
+} from "@/lib/engine/atrEngine";
+
+import {
+  Candle,
+} from "@/lib/core/market/CandleProvider";
 
 export type TechnicalAnalysis = {
+
   indicators: ReturnType<
     typeof calculateIndicators
   >;
@@ -25,7 +32,12 @@ export type TechnicalAnalysis = {
     typeof calculateMACD
   >;
 
+  atr: ReturnType<
+    typeof calculateATR
+  >;
+
   technicalScore: number;
+
 };
 
 class TechnicalAnalysisService {
@@ -35,78 +47,91 @@ class TechnicalAnalysisService {
   ): TechnicalAnalysis {
 
     const indicators =
-      calculateIndicators(
-        candles
-      );
+      calculateIndicators(candles);
 
     const closes =
-      candles.map(
-        (c) => c.close
-      );
+      candles.map(c => c.close);
+
+    const highs =
+      candles.map(c => c.high);
+
+    const lows =
+      candles.map(c => c.low);
 
     const rsi =
-      calculateRSI(
-        closes
-      );
+      calculateRSI(closes);
 
     const macd =
-      calculateMACD(
+      calculateMACD(closes);
+
+    const atr =
+      calculateATR(
+        highs,
+        lows,
         closes
       );
 
     let score = 50;
 
     if (
-      indicators.trend ===
-      "Bullish"
-    ) {
+      indicators.trend === "Bullish"
+    )
       score += 15;
-    } else {
+    else
       score -= 15;
-    }
 
     if (
-      rsi.status ===
-      "OVERSOLD"
-    ) {
+      rsi.status === "OVERSOLD"
+    )
       score += 10;
-    }
 
     if (
-      rsi.status ===
-      "OVERBOUGHT"
-    ) {
+      rsi.status === "OVERBOUGHT"
+    )
       score -= 10;
-    }
 
     if (
-      macd.trend ===
-      "BULLISH"
-    ) {
+      macd.trend === "BULLISH"
+    )
       score += 15;
-    }
 
     if (
-      macd.trend ===
-      "BEARISH"
-    ) {
+      macd.trend === "BEARISH"
+    )
       score -= 15;
-    }
 
-    score = Math.max(
-      0,
-      Math.min(
-        100,
-        score
-      )
-    );
+    if (
+      atr.volatility === "LOW"
+    )
+      score += 5;
+
+    if (
+      atr.volatility === "HIGH"
+    )
+      score -= 5;
+
+    score =
+      Math.max(
+        0,
+        Math.min(
+          100,
+          score
+        )
+      );
 
     return {
+
       indicators,
+
       rsi,
+
       macd,
+
+      atr,
+
       technicalScore:
         score,
+
     };
 
   }
