@@ -16,7 +16,7 @@ type AnalysisResponse = {
 
   data: {
 
-    symbol: string;
+    symbol: string
 
     risk: {
       level: string;
@@ -87,7 +87,7 @@ export default function SignalCard() {
         const response =
           await fetch(
 
-            `/api/analysis?symbol=${focus.symbol}`,
+            `/api/analysis?symbol=${focus?.symbol ?? "BTCUSDT"}`,
 
             {
               cache:
