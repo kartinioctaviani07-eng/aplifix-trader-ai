@@ -6,6 +6,11 @@ import {
 
 import Card from "@/components/ui/Card";
 
+import {
+  useAIFocus,
+} from "@/context/AIFocusContext";
+
+
 const SYMBOLS = [
   "BTCUSDT",
   "ETHUSDT",
@@ -15,16 +20,25 @@ const SYMBOLS = [
   "SUIUSDT",
 ];
 
+
 export default function AIFocusSelector() {
+
+  const {
+    refresh,
+  } = useAIFocus();
+
 
   const [mode, setMode] =
     useState<"AUTO" | "MANUAL">("AUTO");
 
+
   const [symbol, setSymbol] =
     useState("BTCUSDT");
 
+
   const [status, setStatus] =
     useState("");
+
 
   async function applyFocus() {
 
@@ -34,10 +48,12 @@ export default function AIFocusSelector() {
         "AI sedang memproses..."
       );
 
+
       const url =
         mode === "AUTO"
           ? "/api/ai-focus?mode=AUTO"
           : `/api/ai-focus?mode=MANUAL&symbol=${symbol}`;
+
 
       const response =
         await fetch(
@@ -47,14 +63,20 @@ export default function AIFocusSelector() {
           }
         );
 
+
       const result =
         await response.json();
 
-      if (result.success) {
+
+      if(result.success){
+
+        await refresh();
+
 
         setStatus(
           `${result.mode}: ${result.focus?.symbol ?? "-"}`
         );
+
 
       } else {
 
@@ -64,7 +86,14 @@ export default function AIFocusSelector() {
 
       }
 
-    } catch {
+
+    } catch(error) {
+
+      console.error(
+        "AI Focus Selector:",
+        error
+      );
+
 
       setStatus(
         "Error koneksi AI"
@@ -74,11 +103,13 @@ export default function AIFocusSelector() {
 
   }
 
+
   return (
 
     <Card title="🤖 AI Focus Control">
 
       <div className="space-y-5">
+
 
         <div>
 
@@ -86,82 +117,128 @@ export default function AIFocusSelector() {
             Mode AI
           </p>
 
+
           <div className="mt-2 flex gap-3">
 
+
             <button
-              onClick={() => setMode("AUTO")}
+
+              onClick={() =>
+                setMode("AUTO")
+              }
+
               className={
                 mode === "AUTO"
                   ? "rounded-lg bg-emerald-600 px-4 py-2 text-white"
                   : "rounded-lg bg-slate-800 px-4 py-2 text-white"
               }
+
             >
+
               AUTO CEO
+
             </button>
 
+
             <button
-              onClick={() => setMode("MANUAL")}
+
+              onClick={() =>
+                setMode("MANUAL")
+              }
+
               className={
                 mode === "MANUAL"
                   ? "rounded-lg bg-emerald-600 px-4 py-2 text-white"
                   : "rounded-lg bg-slate-800 px-4 py-2 text-white"
               }
+
             >
+
               MANUAL
+
             </button>
+
 
           </div>
 
         </div>
 
-        {mode === "MANUAL" && (
 
-          <div>
 
-            <p className="text-sm text-slate-400">
-              Pilih Market
-            </p>
+        {
+          mode === "MANUAL" && (
 
-            <select
-              value={symbol}
-              onChange={(e) =>
-                setSymbol(e.target.value)
-              }
-              className="mt-2 w-full rounded-lg bg-slate-800 p-3 text-white"
-            >
+            <div>
 
-              {SYMBOLS.map((item) => (
+              <p className="text-sm text-slate-400">
+                Pilih Market
+              </p>
 
-                <option
-                  key={item}
-                  value={item}
-                >
-                  {item}
-                </option>
 
-              ))}
+              <select
 
-            </select>
+                value={symbol}
 
-          </div>
+                onChange={(e) =>
+                  setSymbol(
+                    e.target.value
+                  )
+                }
 
-        )}
+                className="mt-2 w-full rounded-lg bg-slate-800 p-3 text-white"
+
+              >
+
+                {
+                  SYMBOLS.map(
+                    (item)=>(
+                      <option
+                        key={item}
+                        value={item}
+                      >
+                        {item}
+                      </option>
+                    )
+                  )
+                }
+
+              </select>
+
+
+            </div>
+
+          )
+        }
+
+
 
         <button
+
           onClick={applyFocus}
+
           className="w-full rounded-lg bg-blue-600 p-3 font-bold text-white"
+
         >
+
           APPLY AI FOCUS
+
         </button>
 
+
+
         <p className="text-sm text-emerald-400">
+
           {status}
+
         </p>
 
+
       </div>
+
 
     </Card>
 
   );
 
 }
+
