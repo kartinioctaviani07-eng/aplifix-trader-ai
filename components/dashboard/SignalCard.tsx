@@ -1,154 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 
 import {
-  useAIFocus,
-} from "@/context/AIFocusContext";
-
-type AnalysisResponse = {
-  success: boolean;
-
-  symbol: string;
-
-  data: {
-
-    symbol: string
-
-    risk: {
-      level: string;
-      riskScore: number;
-    };
-
-    signal: {
-
-      signal:
-        | "BUY"
-        | "SELL"
-        | "WAIT";
-
-      strength:
-        | "WEAK"
-        | "MEDIUM"
-        | "STRONG";
-
-      confidence: number;
-
-      marketCondition: string;
-
-      summary: string;
-
-      reasons: string[];
-
-    };
-
-    technical: {
-
-      indicators: {
-
-        trend: string;
-
-      };
-
-      technicalScore: number;
-
-    };
-
-  };
-
-};
+  useScheduler,
+} from "@/context/SchedulerContext";
 
 export default function SignalCard() {
 
   const {
-    focus,
-  } = useAIFocus();
+    data,
+    loading,
+  } = useScheduler();
 
-  const [
-    analysis,
-    setAnalysis,
-  ] =
-    useState<
-      AnalysisResponse["data"] | null
-    >(null);
-
-  useEffect(() => {
-
-    if (!focus)
-      return;
-
-    async function loadAnalysis() {
-
-      try {
-
-        const response =
-          await fetch(
-
-            `/api/analysis?symbol=${focus?.symbol ?? "BTCUSDT"}`,
-
-            {
-              cache:
-                "no-store",
-            }
-
-          );
-
-        const result:
-          AnalysisResponse =
-          await response.json();
-
-        if (
-          result.success
-        ) {
-
-          setAnalysis(
-            result.data
-          );
-
-        }
-
-      } catch (
-        error
-      ) {
-
-        console.error(
-          error
-        );
-
-      }
-
-    }
-
-    loadAnalysis();
-
-    const interval =
-      setInterval(
-        loadAnalysis,
-        30000
-      );
-
-    return () =>
-      clearInterval(
-        interval
-      );
-
-  }, [
-    focus,
-  ]);
-
-  if (
-    !analysis
-  ) {
+  if (loading || !data) {
 
     return (
 
       <Card title="🤖 AI Trading Signal">
 
         <p className="text-slate-400">
-          Loading...
+          Loading AI...
         </p>
 
       </Card>
@@ -157,38 +30,39 @@ export default function SignalCard() {
 
   }
 
+  const decision =
+    data.brain.decision;
+
   return (
 
     <Card title="🤖 AI Trading Signal">
 
-      <div>
+      <div className="space-y-5">
 
-        <h2 className="text-2xl font-bold text-white">
+        <div>
 
-          {analysis.symbol}
+          <h2 className="text-2xl font-bold text-white">
 
-        </h2>
+            {data.symbol}
 
-        <div className="mt-4 flex gap-3">
-
-          <Badge
-            text={
-              analysis.signal.signal
-            }
-          />
-
-          <Badge
-            text={
-              analysis.signal.strength
-            }
-          />
+          </h2>
 
         </div>
 
-        <div className="mt-6">
+        <div className="flex gap-3">
+
+          <Badge text={decision.action} />
+
+          <Badge text={data.brain.risk.level} />
+
+        </div>
+
+        <div>
 
           <p className="text-sm text-slate-400">
-            AI Confidence
+
+            Confidence
+
           </p>
 
           <div className="mt-2 h-3 rounded-full bg-slate-800">
@@ -198,8 +72,10 @@ export default function SignalCard() {
               className="h-3 rounded-full bg-emerald-500"
 
               style={{
+
                 width:
-                  `${analysis.signal.confidence}%`,
+                  `${decision.confidence}%`,
+
               }}
 
             />
@@ -208,95 +84,47 @@ export default function SignalCard() {
 
           <p className="mt-2 text-right text-sm text-emerald-400">
 
-            {analysis.signal.confidence}%
+            {decision.confidence}%
 
           </p>
 
         </div>
 
-        <div className="mt-6">
+        <div>
 
           <p className="text-sm text-slate-400">
-            Market Condition
+
+            AI Score
+
           </p>
 
-          <p className="font-semibold text-white">
+          <p className="font-bold text-white">
 
-            {analysis.signal.marketCondition}
+            {decision.totalScore}
 
           </p>
 
         </div>
 
-        <div className="mt-6">
+        <div>
 
           <p className="text-sm text-slate-400">
-            Risk Level
-          </p>
 
-          <p className="font-semibold text-white">
-
-            {analysis.risk.level}
+            Reason
 
           </p>
 
-        </div>
+          <ul className="mt-2 list-disc pl-5 text-sm text-slate-300">
 
-        <div className="mt-6">
+            {decision.reason.map((item: string) => (
 
-          <p className="text-sm text-slate-400">
-            AI Summary
-          </p>
+              <li key={item}>
+                {item}
+              </li>
 
-          <p className="mt-2 text-sm text-slate-300">
+            ))}
 
-            {analysis.signal.summary}
-
-          </p>
-
-        </div>
-
-        <div className="mt-6">
-
-          <p className="text-sm text-slate-400">
-            AI Reason
-          </p>
-
-          {
-
-            analysis.signal.reasons.length === 0
-
-            ?
-
-            <p className="mt-2 text-sm text-slate-500">
-
-              Tidak ada alasan tambahan.
-
-            </p>
-
-            :
-
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
-
-              {
-
-                analysis.signal.reasons.map(
-                  (
-                    item
-                  ) => (
-
-                    <li key={item}>
-                      {item}
-                    </li>
-
-                  )
-                )
-
-              }
-
-            </ul>
-
-          }
+          </ul>
 
         </div>
 

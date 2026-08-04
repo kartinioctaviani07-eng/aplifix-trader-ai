@@ -2,14 +2,11 @@ export type PositionSide =
   | "BUY"
   | "SELL";
 
-
 export type PositionStatus =
   | "OPEN"
   | "CLOSED";
 
-
 export interface Position {
-
   id: string;
 
   symbol: string;
@@ -29,16 +26,11 @@ export interface Position {
   openedAt: number;
 
   status: PositionStatus;
-
 }
-
-
 
 class PositionManager {
 
   private positions: Position[];
-
-
 
   constructor() {
 
@@ -50,19 +42,70 @@ class PositionManager {
 
   }
 
-
-
   openPosition(
     position: Position
   ) {
+
+    if (
+      this.hasOpenPosition(
+        position.symbol
+      )
+    ) {
+
+      return false;
+
+    }
 
     this.positions.push(
       position
     );
 
+    globalThis.__positionsStore =
+      this.positions;
+
+    return true;
+
   }
 
+  hasOpenPosition(
+    symbol: string
+  ) {
 
+    return this.positions.some(
+
+      (position) =>
+
+        position.symbol === symbol &&
+        position.status === "OPEN"
+
+    );
+
+  }
+
+  getPosition(
+    symbol: string
+  ) {
+
+    return this.positions.find(
+
+      (position) =>
+
+        position.symbol === symbol &&
+        position.status === "OPEN"
+
+    ) ?? null;
+
+  }
+
+  canOpenPosition(
+    symbol: string
+  ) {
+
+    return !this.hasOpenPosition(
+      symbol
+    );
+
+  }
 
   updatePrice(
     symbol: string,
@@ -74,34 +117,32 @@ class PositionManager {
         (position) => {
 
           if (
+
             position.symbol !== symbol ||
+
             position.status === "CLOSED"
+
           ) {
 
             return position;
 
           }
 
-
           return {
 
             ...position,
 
-            currentPrice:
-              price,
+            currentPrice: price,
 
           };
 
         }
       );
 
-
     globalThis.__positionsStore =
       this.positions;
 
   }
-
-
 
   closePosition(
     id: string
@@ -119,49 +160,59 @@ class PositionManager {
 
           }
 
-
           return {
 
             ...position,
 
-            status:
-              "CLOSED",
+            status: "CLOSED",
 
           };
 
         }
       );
 
+    globalThis.__positionsStore =
+      this.positions;
+
+  }
+
+  removeClosedPosition() {
+
+    this.positions =
+      this.positions.filter(
+
+        (position) =>
+
+          position.status === "OPEN"
+
+      );
 
     globalThis.__positionsStore =
       this.positions;
 
   }
 
-
-
   getOpenPositions() {
 
     return this.positions.filter(
+
       (position) =>
+
         position.status === "OPEN"
+
     );
 
   }
 
-
-
   getAllPositions() {
 
     return [
-      ...this.positions
+      ...this.positions,
     ];
 
   }
 
 }
-
-
 
 declare global {
 
@@ -170,8 +221,6 @@ declare global {
     | undefined;
 
 }
-
-
 
 export const positionManager =
   new PositionManager();
