@@ -1,3 +1,7 @@
+import {
+  adaptConfidence,
+} from "./adaptiveConfidence";
+
 export type DecisionInput = {
   technicalScore: number;
   newsScore: number;
@@ -7,7 +11,6 @@ export type DecisionInput = {
   riskScore: number;
   learningScore?: number;
 };
-
 
 export type DecisionResult = {
 
@@ -25,31 +28,30 @@ export type DecisionResult = {
 
 };
 
-
-
 export function makeDecision(
   input: DecisionInput
 ): DecisionResult {
 
-
   const weights = {
 
     technical: 0.40,
+
     news: 0.10,
+
     fundamental: 0.10,
+
     macro: 0.10,
+
     sentiment: 0.10,
+
     risk: 0.15,
+
     learning: 0.05,
 
   };
 
-
-
   const learningScore =
     input.learningScore ?? 50;
-
-
 
   const totalScore =
     Math.round(
@@ -77,39 +79,38 @@ export function makeDecision(
 
     );
 
+  const reason: string[] = [];
 
-
-  const reason:string[] = [];
-
-
-
-  if(
+  if (
     input.technicalScore >= 80
-  ){
+  ) {
 
     reason.push(
       "Technical trend bullish kuat."
     );
 
   }
-  else if(
+
+  else if (
     input.technicalScore >= 60
-  ){
+  ) {
 
     reason.push(
       "Technical trend mulai mendukung."
     );
 
   }
-  else if(
+
+  else if (
     input.technicalScore <= 30
-  ){
+  ) {
 
     reason.push(
       "Technical trend masih bearish."
     );
 
   }
+
   else {
 
     reason.push(
@@ -118,11 +119,9 @@ export function makeDecision(
 
   }
 
-
-
-  if(
+  if (
     input.newsScore >= 70
-  ){
+  ) {
 
     reason.push(
       "News sentiment positif."
@@ -130,10 +129,9 @@ export function makeDecision(
 
   }
 
-
-  if(
+  if (
     input.newsScore <= 30
-  ){
+  ) {
 
     reason.push(
       "News sentiment negatif."
@@ -141,11 +139,9 @@ export function makeDecision(
 
   }
 
-
-
-  if(
+  if (
     input.riskScore >= 80
-  ){
+  ) {
 
     reason.push(
       "Risk management aman."
@@ -153,11 +149,9 @@ export function makeDecision(
 
   }
 
-
-
-  if(
+  if (
     input.riskScore < 50
-  ){
+  ) {
 
     reason.push(
       "Risiko perdagangan tinggi."
@@ -165,11 +159,9 @@ export function makeDecision(
 
   }
 
-
-
-  if(
+  if (
     learningScore >= 70
-  ){
+  ) {
 
     reason.push(
       "AI learning history mendukung keputusan."
@@ -177,37 +169,33 @@ export function makeDecision(
 
   }
 
-
-
   let action:
     | "BUY"
     | "SELL"
     | "HOLD"
     | "WAIT";
 
-
-
-  if(
+  if (
     input.technicalScore >= 75 &&
     totalScore >= 75
-  ){
+  ) {
 
     action = "BUY";
 
   }
 
-  else if(
+  else if (
     input.technicalScore <= 30 &&
     totalScore <= 40
-  ){
+  ) {
 
     action = "SELL";
 
   }
 
-  else if(
+  else if (
     totalScore >= 60
-  ){
+  ) {
 
     action = "HOLD";
 
@@ -219,20 +207,30 @@ export function makeDecision(
 
   }
 
+  const adaptive =
+    adaptConfidence(
+      totalScore
+    );
 
+  reason.push(
+    `Adaptive bonus: +${adaptive.bonus.toFixed(1)}`
+  );
+
+  reason.push(
+    `Adaptive penalty: -${adaptive.penalty.toFixed(1)}`
+  );
 
   return {
 
     action,
 
     confidence:
-      totalScore,
+      adaptive.adjustedConfidence,
 
     totalScore,
 
     reason,
 
   };
-
 
 }

@@ -1,13 +1,19 @@
 export type ATRResult = {
   value: number;
-  volatility: "LOW" | "MEDIUM" | "HIGH";
+
+  percent: number;
+
+  volatility:
+    | "LOW"
+    | "MEDIUM"
+    | "HIGH";
 };
 
 export function calculateATR(
   highs: number[],
   lows: number[],
   closes: number[],
-  period: number = 14
+  period = 14
 ): ATRResult {
 
   if (
@@ -15,63 +21,119 @@ export function calculateATR(
     lows.length < period + 1 ||
     closes.length < period + 1
   ) {
+
     return {
+
       value: 0,
+
+      percent: 0,
+
       volatility: "LOW",
+
     };
+
   }
 
   const trueRanges: number[] = [];
 
-  for (let i = 1; i < highs.length; i++) {
+  for (
+    let i = 1;
+    i < highs.length;
+    i++
+  ) {
 
     const highLow =
       highs[i] - lows[i];
 
     const highClose =
       Math.abs(
-        highs[i] - closes[i - 1]
+        highs[i] -
+        closes[i - 1]
       );
 
     const lowClose =
       Math.abs(
-        lows[i] - closes[i - 1]
+        lows[i] -
+        closes[i - 1]
       );
 
     trueRanges.push(
+
       Math.max(
+
         highLow,
+
         highClose,
+
         lowClose
+
       )
+
     );
 
   }
 
-  const atrSlice =
-    trueRanges.slice(-period);
-
   const atr =
-    atrSlice.reduce(
-      (sum, value) => sum + value,
-      0
-    ) / period;
+
+    trueRanges
+
+      .slice(-period)
+
+      .reduce(
+
+        (a, b) => a + b,
+
+        0
+
+      ) / period;
+
+  const latestClose =
+    closes.at(-1) ?? 1;
+
+  const percent =
+    (atr / latestClose) * 100;
 
   let volatility:
     | "LOW"
     | "MEDIUM"
     | "HIGH";
 
-  if (atr < 200)
+  if (
+    percent < 1
+  ) {
+
     volatility = "LOW";
-  else if (atr < 500)
+
+  }
+
+  else if (
+    percent < 2.5
+  ) {
+
     volatility = "MEDIUM";
-  else
+
+  }
+
+  else {
+
     volatility = "HIGH";
 
+  }
+
   return {
-    value: Number(atr.toFixed(2)),
+
+    value:
+      Number(
+        atr.toFixed(2)
+      ),
+
+    percent:
+      Number(
+        percent.toFixed(2)
+      ),
+
     volatility,
+
   };
 
 }

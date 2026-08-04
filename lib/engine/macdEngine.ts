@@ -5,18 +5,23 @@ export type MACDResult = {
   trend: "BULLISH" | "BEARISH" | "NEUTRAL";
 };
 
-function ema(
+function calculateEMA(
   values: number[],
   period: number
 ): number {
 
-  if (values.length === 0)
+  if (
+    values.length === 0
+  ) {
+
     return 0;
+
+  }
 
   const multiplier =
     2 / (period + 1);
 
-  let result =
+  let ema =
     values[0];
 
   for (
@@ -25,30 +30,63 @@ function ema(
     i++
   ) {
 
-    result =
-      values[i] * multiplier +
-      result * (1 - multiplier);
+    ema =
+      values[i] *
+        multiplier +
+      ema *
+        (1 - multiplier);
 
   }
 
-  return result;
+  return ema;
+
 }
 
 export function calculateMACD(
   closes: number[]
 ): MACDResult {
 
+  if (
+    closes.length < 35
+  ) {
+
+    return {
+
+      macd: 0,
+
+      signal: 0,
+
+      histogram: 0,
+
+      trend: "NEUTRAL",
+
+    };
+
+  }
+
   const ema12 =
-    ema(closes, 12);
+    calculateEMA(
+      closes,
+      12
+    );
 
   const ema26 =
-    ema(closes, 26);
+    calculateEMA(
+      closes,
+      26
+    );
 
   const macd =
     ema12 - ema26;
 
+  const macdSeries =
+    closes.map(() => macd);
+
   const signal =
-    macd;
+    calculateEMA(
+      macdSeries,
+      9
+    );
 
   const histogram =
     macd - signal;
@@ -58,23 +96,40 @@ export function calculateMACD(
     | "BEARISH"
     | "NEUTRAL";
 
-  if (macd > 0)
+  if (
+    histogram > 0
+  ) {
+
     trend = "BULLISH";
-  else if (macd < 0)
+
+  } else if (
+    histogram < 0
+  ) {
+
     trend = "BEARISH";
-  else
+
+  } else {
+
     trend = "NEUTRAL";
+
+  }
 
   return {
 
     macd:
-      Number(macd.toFixed(2)),
+      Number(
+        macd.toFixed(2)
+      ),
 
     signal:
-      Number(signal.toFixed(2)),
+      Number(
+        signal.toFixed(2)
+      ),
 
     histogram:
-      Number(histogram.toFixed(2)),
+      Number(
+        histogram.toFixed(2)
+      ),
 
     trend,
 

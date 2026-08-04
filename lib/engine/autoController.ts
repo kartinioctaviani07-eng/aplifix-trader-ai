@@ -2,48 +2,35 @@ import {
   aiBrain,
 } from "./aiBrain";
 
-
 import {
   executeTrade,
 } from "./tradeExecutor";
-
 
 import {
   positionManager,
 } from "./PositionManager";
 
-
 import {
   getMarketData,
 } from "../marketData";
-
-
 
 export function runAutoController(
   symbol: string
 ) {
 
-
   const rawCandles =
     getMarketData();
-
-
 
   const candles =
     rawCandles.map(
       (candle) => ({
-
         ...candle,
-
         time:
           new Date(
             candle.time
           ).getTime(),
-
       })
     );
-
-
 
   const brain =
     aiBrain.think(
@@ -51,17 +38,12 @@ export function runAutoController(
       candles
     );
 
-
-
   const decision =
     brain.decision;
-
-
 
   if (
     decision.action === "BUY"
   ) {
-
 
     if (
       decision.confidence < 75
@@ -79,8 +61,6 @@ export function runAutoController(
       };
 
     }
-
-
 
     if (
       brain.risk.level !== "LOW"
@@ -102,8 +82,6 @@ export function runAutoController(
 
     }
 
-
-
     const existing =
       positionManager
         .getOpenPositions()
@@ -111,8 +89,6 @@ export function runAutoController(
           (position) =>
             position.symbol === symbol
         );
-
-
 
     if (
       existing.length > 0
@@ -134,15 +110,11 @@ export function runAutoController(
 
     }
 
-
-
     const position =
       executeTrade(
         symbol,
         "BUY"
       );
-
-
 
     return {
 
@@ -159,12 +131,9 @@ export function runAutoController(
 
   }
 
-
-
   if (
     decision.action === "SELL"
   ) {
-
 
     return {
 
@@ -179,8 +148,6 @@ export function runAutoController(
 
   }
 
-
-
   return {
 
     executed: false,
@@ -191,6 +158,5 @@ export function runAutoController(
     decision,
 
   };
-
 
 }

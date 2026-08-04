@@ -1,47 +1,11 @@
-import { marketHub } from "@/lib/core/market";
-import { aiBrain } from "./aiBrain";
-import { runAutoController } from "./autoController";
-import { monitorPositions } from "./positionMonitor";
-import { getPerformance } from "./performanceEngine";
-import { getLearningData } from "./learningEngine";
-import { aiMemory } from "./aiMemory";
-import { candleHub } from "@/lib/core/market/candleIndex";
+import { aiCore } from "./aiCore";
 
-export type SchedulerResult = {
-
-  symbol: string;
-
-  ticker: Awaited<
-    ReturnType<typeof marketHub.getTicker>
+export type SchedulerResult =
+  Awaited<
+    ReturnType<
+      typeof aiCore.analyze
+    >
   >;
-
-  brain: ReturnType<
-    typeof aiBrain.think
-  >;
-
-  autoTrader: ReturnType<
-    typeof runAutoController
-  >;
-
-  monitor: ReturnType<
-    typeof monitorPositions
-  >;
-
-  performance: ReturnType<
-    typeof getPerformance
-  >;
-
-  learning: ReturnType<
-    typeof getLearningData
-  >;
-
-  memory: ReturnType<
-    typeof aiMemory.getAll
-  >;
-
-  executedAt: number;
-
-};
 
 class SchedulerEngine {
 
@@ -51,67 +15,9 @@ class SchedulerEngine {
     symbol: string
   ): Promise<SchedulerResult> {
 
-    const ticker =
-      await marketHub.getTicker(
-        symbol
-      );
-
-    const candles =
-      await candleHub.getCandles(
-        symbol,
-        "1h"
-      );
-
-    const brain =
-      aiBrain.think(
-        symbol,
-        candles
-      );
-
-    const autoTrader =
-      runAutoController(
-        symbol
-      );
-
-    const monitor =
-      monitorPositions(
-        symbol,
-        ticker.price
-      );
-
-    const performance =
-      getPerformance();
-
-    const learning =
-      getLearningData();
-
-    const memory =
-      aiMemory.getBySymbol(
-        symbol
-      );
-
-    return {
-
-      symbol,
-
-      ticker,
-
-      brain,
-
-      autoTrader,
-
-      monitor,
-
-      performance,
-
-      learning,
-
-      memory,
-
-      executedAt:
-        Date.now(),
-
-    };
+    return await aiCore.analyze(
+      symbol
+    );
 
   }
 
@@ -139,7 +45,9 @@ class SchedulerEngine {
           symbol
         );
 
-      } catch (error) {
+      } catch (
+        error
+      ) {
 
         console.error(
           "Scheduler Error:",
