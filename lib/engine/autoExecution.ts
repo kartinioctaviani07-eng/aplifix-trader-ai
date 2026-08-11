@@ -1,136 +1,48 @@
 import {
-  runAutoTrader,
-} from "./autoTrader";
+  runAutoController,
+} from "./autoController";
 
-import {
-  positionManager,
-} from "./PositionManager";
-
-import {
-  getMarketData,
-} from "../marketData";
-
-
-
-export function executeAutoTrade(
+export async function runAutoExecution(
   symbol: string
 ) {
 
-
-  const decision =
-    runAutoTrader(
+  const result =
+    await runAutoController(
       symbol
     );
 
+  if (
+    !result.executed
+  ) {
 
+    return result;
+
+  }
 
   if (
-    decision.action !== "BUY"
+    result.action !== "BUY"
   ) {
 
     return {
 
       executed: false,
 
-      decision,
-
-    };
-
-  }
-
-
-
-  const existing =
-    positionManager
-      .getOpenPositions()
-      .filter(
-        (position) =>
-          position.symbol === symbol
-      );
-
-
-
-  if (
-    existing.length > 0
-  ) {
-
-    return {
-
-      executed:false,
-
       message:
-        "Position masih terbuka",
-
-      decision,
+        "Tidak ada BUY yang dieksekusi.",
 
     };
 
   }
-
-
-
-  const candles =
-    getMarketData();
-
-
-
-  const price =
-    candles[
-      candles.length - 1
-    ].close;
-
-
-
-  const position = {
-
-    id:
-      crypto.randomUUID(),
-
-    symbol,
-
-    side:
-      "BUY" as const,
-
-    entryPrice:
-      price,
-
-    currentPrice:
-      price,
-
-    quantity:
-      0.01,
-
-    stopLoss:
-      price * 0.98,
-
-    takeProfit:
-      price * 1.04,
-
-    openedAt:
-      Date.now(),
-
-    status:
-      "OPEN" as const,
-
-  };
-
-
-
-  positionManager.openPosition(
-    position
-  );
-
-
 
   return {
 
-    executed:true,
+    executed: true,
 
-    position,
+    message:
+      "Auto Execution berhasil.",
 
-    decision,
+    result,
 
   };
-
 
 }

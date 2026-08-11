@@ -4,6 +4,18 @@ import {
 } from "./indicatorEngine";
 
 import {
+  calculateMarketScore,
+} from "./marketScoreEngine";
+
+import {
+  analyzeMultiTimeframe,
+} from "./multiTimeframeEngine";
+
+import {
+  buildConsensus,
+} from "./consensusEngine";
+
+import {
   makeDecision,
 } from "./decisionEngine";
 
@@ -23,6 +35,14 @@ import {
   aiMemory,
 } from "./aiMemory";
 
+import {
+  analyzeSentiment,
+} from "./sentimentEngine";
+
+import {
+  mockNewsProvider,
+} from "@/lib/providers/news/MockNewsProvider";
+
 type TechnicalAnalysis =
   ReturnType<typeof calculateIndicators>;
 
@@ -40,9 +60,35 @@ export interface AIBrainResult {
 
   technical: TechnicalAnalysis;
 
-  risk: ReturnType<typeof calculateRisk>;
+  marketScore:
+    ReturnType<
+      typeof calculateMarketScore
+    >;
 
-  learning: ReturnType<typeof getLearningData>;
+  multiTimeframe:
+    ReturnType<
+      typeof analyzeMultiTimeframe
+    >;
+
+  consensus:
+    ReturnType<
+      typeof buildConsensus
+    >;
+
+  sentiment:
+    ReturnType<
+      typeof analyzeSentiment
+    >;
+
+  risk:
+    ReturnType<
+      typeof calculateRisk
+    >;
+
+  learning:
+    ReturnType<
+      typeof getLearningData
+    >;
 
   decision: Decision;
 
@@ -52,39 +98,66 @@ export interface AIBrainResult {
 
 }
 
-const TECHNICAL_SCORE_BY_TREND:
-  Record<string, number> = {
-
-  Bullish: 80,
-
-  Bearish: 30,
-
-};
-
-const DEFAULT_TECHNICAL_SCORE = 50;
-
 export class AIBrain {
 
-  think(
+  async think(
     symbol: string,
     candles: Candle[]
-  ): AIBrainResult {
+  ): Promise<AIBrainResult> {
 
     const technical =
       calculateIndicators(
         candles
       );
 
-    const technicalScore =
-      TECHNICAL_SCORE_BY_TREND[
-        technical.trend
-      ] ??
-      DEFAULT_TECHNICAL_SCORE;
+    const marketScore =
+      calculateMarketScore({
+
+        trend:
+          technical.trend,
+
+        rsi:
+          technical.rsi,
+
+        macd:
+          technical.macd,
+
+        signal:
+          technical.signal,
+
+        adx:
+          technical.adx,
+
+        patternStrength:
+          technical.trendStrength,
+
+      });
+
+    const multiTimeframe =
+      analyzeMultiTimeframe(
+        candles
+      );
+
+    const consensus =
+      buildConsensus(
+        multiTimeframe
+      );
+
+    const news =
+      await mockNewsProvider.getNews(
+        symbol
+      );
+
+    const sentiment =
+      analyzeSentiment(
+        news
+      );
 
     const risk =
       calculateRisk({
 
-        volatility: 3,
+        volatility:
+          technical.atr,
 
         stopLossPercent: 3,
 
@@ -95,18 +168,28 @@ export class AIBrain {
     const learning =
       getLearningData();
 
+    const technicalScore =
+      Math.round(
+        (
+          marketScore.technicalScore +
+          consensus.score
+        ) / 2
+      );
+
     const decision =
       makeDecision({
 
         technicalScore,
 
-        newsScore: 50,
+        newsScore:
+          sentiment.score,
 
         fundamentalScore: 50,
 
         macroScore: 50,
 
-        sentimentScore: 50,
+        sentimentScore:
+          sentiment.score,
 
         riskScore:
           risk.riskScore,
@@ -145,7 +228,9 @@ export class AIBrain {
       positionManager
         .getOpenPositions()
         .filter(
-          (position) =>
+          (
+            position
+          ) =>
             position.symbol === symbol
         );
 
@@ -154,6 +239,14 @@ export class AIBrain {
       symbol,
 
       technical,
+
+      marketScore,
+
+      multiTimeframe,
+
+      consensus,
+
+      sentiment,
 
       risk,
 

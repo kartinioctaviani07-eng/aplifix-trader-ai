@@ -14,7 +14,7 @@ import {
   getMarketData,
 } from "../marketData";
 
-export function runAutoController(
+export async function runAutoController(
   symbol: string
 ) {
 
@@ -33,7 +33,7 @@ export function runAutoController(
     );
 
   const brain =
-    aiBrain.think(
+    await aiBrain.think(
       symbol,
       candles
     );
@@ -86,7 +86,9 @@ export function runAutoController(
       positionManager
         .getOpenPositions()
         .filter(
-          (position) =>
+          (
+            position
+          ) =>
             position.symbol === symbol
         );
 

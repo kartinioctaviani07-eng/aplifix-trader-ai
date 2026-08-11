@@ -4,10 +4,8 @@ import { candleHub } from "@/lib/core/market/candleIndex";
 import { aiBrain } from "./aiBrain";
 import { runAutoController } from "./autoController";
 import { monitorPositions } from "./positionMonitor";
-
 import { getPerformance } from "./performanceEngine";
 import { getLearningData } from "./learningEngine";
-
 import { aiMemory } from "./aiMemory";
 
 export interface AIResult {
@@ -22,12 +20,12 @@ export interface AIResult {
     ReturnType<typeof candleHub.getCandles>
   >;
 
-  brain: ReturnType<
-    typeof aiBrain.think
+  brain: Awaited<
+    ReturnType<typeof aiBrain.think>
   >;
 
-  autoTrader: ReturnType<
-    typeof runAutoController
+  autoTrader: Awaited<
+    ReturnType<typeof runAutoController>
   >;
 
   monitor: ReturnType<
@@ -68,13 +66,13 @@ class AICore {
       );
 
     const brain =
-      aiBrain.think(
+      await aiBrain.think(
         symbol,
         candles
       );
 
     const autoTrader =
-      runAutoController(
+      await runAutoController(
         symbol
       );
 

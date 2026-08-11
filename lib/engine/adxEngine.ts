@@ -1,5 +1,5 @@
 export type ADXResult = {
-  adx: number;
+  value: number;
 
   strength:
     | "WEAK"
@@ -22,7 +22,7 @@ export function calculateADX(
 
     return {
 
-      adx: 0,
+      value: 0,
 
       strength: "WEAK",
 
@@ -53,7 +53,7 @@ export function calculateADX(
   const latestPrice =
     closes.at(-1) ?? 1;
 
-  const adx =
+  const value =
     (averageMovement / latestPrice) *
     1000;
 
@@ -62,23 +62,15 @@ export function calculateADX(
     | "MODERATE"
     | "STRONG";
 
-  if (
-    adx < 20
-  ) {
+  if (value < 20) {
 
     strength = "WEAK";
 
-  }
-
-  else if (
-    adx < 40
-  ) {
+  } else if (value < 40) {
 
     strength = "MODERATE";
 
-  }
-
-  else {
+  } else {
 
     strength = "STRONG";
 
@@ -86,8 +78,8 @@ export function calculateADX(
 
   return {
 
-    adx: Number(
-      adx.toFixed(2)
+    value: Number(
+      value.toFixed(2)
     ),
 
     strength,

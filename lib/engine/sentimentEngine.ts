@@ -2,8 +2,7 @@ import {
   NewsItem,
 } from "@/lib/providers/news/NewsProvider";
 
-
-export type SentimentResult = {
+export interface SentimentResult {
 
   score: number;
 
@@ -13,57 +12,153 @@ export type SentimentResult = {
 
   neutral: number;
 
-};
+  dominant:
+    | "POSITIVE"
+    | "NEGATIVE"
+    | "NEUTRAL";
 
+  confidence: number;
+
+  reasons: string[];
+
+}
 
 export function analyzeSentiment(
   news: NewsItem[]
 ): SentimentResult {
 
-
   let positive = 0;
-  let negative = 0;
-  let neutral = 0;
 
+  let negative = 0;
+
+  let neutral = 0;
 
   for (
     const item of news
   ) {
 
-    if (
-      item.sentiment === "POSITIVE"
+    switch (
+      item.sentiment
     ) {
-      positive++;
-    }
 
-    else if (
-      item.sentiment === "NEGATIVE"
-    ) {
-      negative++;
-    }
+      case "POSITIVE":
 
-    else {
-      neutral++;
+        positive++;
+
+        break;
+
+      case "NEGATIVE":
+
+        negative++;
+
+        break;
+
+      default:
+
+        neutral++;
+
+        break;
+
     }
 
   }
 
-
   const total =
-    news.length || 1;
-
+    Math.max(
+      1,
+      news.length
+    );
 
   const score =
     Math.round(
+
       (
         positive * 100 +
-        neutral * 50 +
-        negative * 0
-      )
-      /
-      total
+
+        neutral * 50
+
+      ) / total
+
     );
 
+  let dominant:
+    | "POSITIVE"
+    | "NEGATIVE"
+    | "NEUTRAL";
+
+  if (
+    positive >
+    negative
+  ) {
+
+    dominant =
+      "POSITIVE";
+
+  }
+
+  else if (
+    negative >
+    positive
+  ) {
+
+    dominant =
+      "NEGATIVE";
+
+  }
+
+  else {
+
+    dominant =
+      "NEUTRAL";
+
+  }
+
+  const confidence =
+    Math.round(
+
+      Math.max(
+        positive,
+        negative,
+        neutral
+      )
+
+      / total
+
+      * 100
+
+    );
+
+  const reasons: string[] = [];
+
+  if (
+    dominant === "POSITIVE"
+  ) {
+
+    reasons.push(
+      "Mayoritas berita positif."
+    );
+
+  }
+
+  if (
+    dominant === "NEGATIVE"
+  ) {
+
+    reasons.push(
+      "Mayoritas berita negatif."
+    );
+
+  }
+
+  if (
+    dominant === "NEUTRAL"
+  ) {
+
+    reasons.push(
+      "Sentimen pasar masih netral."
+    );
+
+  }
 
   return {
 
@@ -74,6 +169,12 @@ export function analyzeSentiment(
     negative,
 
     neutral,
+
+    dominant,
+
+    confidence,
+
+    reasons,
 
   };
 
