@@ -1,14 +1,10 @@
 "use client";
 
-import {
-  useState,
-} from "react";
+import { useState } from "react";
 
 import Card from "@/components/ui/Card";
 
-import {
-  useAIFocus,
-} from "@/context/AIFocusContext";
+import { useAIFocus } from "@/context/AIFocusContext";
 
 const SYMBOLS = [
   "BTCUSDT",
@@ -20,10 +16,8 @@ const SYMBOLS = [
 ];
 
 export default function AIFocusSelector() {
-
   const {
     focus,
-    refresh,
     setManualFocus,
   } = useAIFocus();
 
@@ -36,16 +30,22 @@ export default function AIFocusSelector() {
   const [status, setStatus] =
     useState("");
 
+  const [applying, setApplying] =
+    useState(false);
+
   async function applyFocus() {
+    if (applying) {
+      return;
+    }
+
+    setApplying(true);
+
+    setStatus(
+      "AI sedang memproses..."
+    );
 
     try {
-
-      setStatus(
-        "AI sedang memproses..."
-      );
-
       if (mode === "MANUAL") {
-
         await setManualFocus(symbol);
 
         setStatus(
@@ -53,73 +53,94 @@ export default function AIFocusSelector() {
         );
 
         return;
-
       }
 
-      await fetch(
-        "/api/ai-focus?mode=AUTO",
-        {
-          cache: "no-store",
-        }
-      );
+      const response =
+        await fetch(
+          "/api/ai-focus?mode=AUTO",
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
 
-      await refresh();
+      if (!response.ok) {
+        throw new Error(
+          "AI Focus API gagal."
+        );
+      }
+
+      const result =
+        await response.json();
+
+      if (!result.success) {
+        throw new Error(
+          "AI Focus tidak berhasil."
+        );
+      }
 
       setStatus(
-        `AUTO: ${focus?.symbol ?? "-"}`
+        `AUTO: ${result.focus?.symbol ?? "-"}`
       );
-
-    } catch {
+    } catch (error) {
+      console.error(
+        "Apply AI Focus:",
+        error
+      );
 
       setStatus(
         "Error koneksi AI"
       );
-
+    } finally {
+      setApplying(false);
     }
-
   }
 
   return (
-
     <Card title="🤖 AI Focus Control">
-
       <div className="space-y-5">
 
         <div>
-
           <p className="text-sm text-slate-400">
             Mode AI
           </p>
 
           <div className="mt-2 flex gap-3">
+
             <button
-              onClick={() => setMode("AUTO")}
+              type="button"
+              onClick={() =>
+                setMode("AUTO")
+              }
+              disabled={applying}
               className={
                 mode === "AUTO"
-                  ? "rounded-lg bg-emerald-600 px-4 py-2 text-white"
-                  : "rounded-lg bg-slate-800 px-4 py-2 text-white"
+                  ? "rounded-lg bg-emerald-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  : "rounded-lg bg-slate-800 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
               AUTO CEO
             </button>
 
             <button
-              onClick={() => setMode("MANUAL")}
+              type="button"
+              onClick={() =>
+                setMode("MANUAL")
+              }
+              disabled={applying}
               className={
                 mode === "MANUAL"
-                  ? "rounded-lg bg-emerald-600 px-4 py-2 text-white"
-                  : "rounded-lg bg-slate-800 px-4 py-2 text-white"
+                  ? "rounded-lg bg-emerald-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  : "rounded-lg bg-slate-800 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
               MANUAL
             </button>
 
           </div>
-
         </div>
 
         {mode === "MANUAL" && (
-
           <div>
 
             <p className="text-sm text-slate-400">
@@ -128,34 +149,38 @@ export default function AIFocusSelector() {
 
             <select
               value={symbol}
-              onChange={(e) =>
-                setSymbol(e.target.value)
+              onChange={(event) =>
+                setSymbol(
+                  event.target.value
+                )
               }
-              className="mt-2 w-full rounded-lg bg-slate-800 p-3 text-white"
+              disabled={applying}
+              className="mt-2 w-full rounded-lg bg-slate-800 p-3 text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
-
-              {SYMBOLS.map((item) => (
-
-                <option
-                  key={item}
-                  value={item}
-                >
-                  {item}
-                </option>
-
-              ))}
-
+              {SYMBOLS.map(
+                (item) => (
+                  <option
+                    key={item}
+                    value={item}
+                  >
+                    {item}
+                  </option>
+                )
+              )}
             </select>
 
           </div>
-
         )}
 
         <button
+          type="button"
           onClick={applyFocus}
-          className="w-full rounded-lg bg-blue-600 p-3 font-bold text-white"
+          disabled={applying}
+          className="w-full rounded-lg bg-blue-600 p-3 font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          APPLY AI FOCUS
+          {applying
+            ? "MEMPROSES..."
+            : "APPLY AI FOCUS"}
         </button>
 
         <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
@@ -170,14 +195,11 @@ export default function AIFocusSelector() {
 
         </div>
 
-        <p className="text-sm text-emerald-400">
+        <p className="min-h-5 text-sm text-emerald-400">
           {status}
         </p>
 
       </div>
-
     </Card>
-
   );
-
 }

@@ -12,105 +12,55 @@ import AIScanner from "@/components/dashboard/AIScanner";
 import AIBrainCard from "@/components/dashboard/AIBrainCard";
 import AIFocusSelector from "@/components/dashboard/AIFocusSelector";
 
-import {
-  AIFocusProvider,
-} from "@/context/AIFocusContext";
-
+import { AIFocusProvider } from "@/context/AIFocusContext";
+import { SchedulerProvider } from "@/context/SchedulerContext";
 
 export default function Home() {
-
   return (
-
     <AIFocusProvider>
+      <SchedulerProvider>
+        <Layout>
+          <Header />
 
-      <Layout>
+          <div className="flex">
+            <Sidebar />
 
-        <Header />
+            <main className="min-h-screen flex-1 bg-slate-950 p-8">
+              <h1 className="text-3xl font-bold text-white">
+                APLIFIX Trader AI
+              </h1>
 
+              <p className="mt-2 text-slate-400">
+                AI Powered Trading Dashboard
+              </p>
 
-        <div className="flex">
+              <div className="mt-8 grid grid-cols-3 gap-6">
+                <BalanceCard />
+                <ProfitCard />
+                <SignalCard />
+              </div>
 
-          <Sidebar />
+              <div className="mt-8">
+                <AIFocusSelector />
+              </div>
 
+              <div className="mt-8">
+                <MarketChart />
+              </div>
 
-          <main className="flex-1 min-h-screen bg-slate-950 p-8">
+              <div className="mt-8 grid grid-cols-2 gap-6">
+                <AIScanner />
+                <AIBrainCard />
+                <Watchlist />
+              </div>
 
-
-            <h1 className="text-3xl font-bold text-white">
-              APLIFIX Trader AI
-            </h1>
-
-
-            <p className="mt-2 text-slate-400">
-              AI Powered Trading Dashboard
-            </p>
-
-
-
-            <div className="mt-8 grid grid-cols-3 gap-6">
-
-              <BalanceCard />
-
-              <ProfitCard />
-
-              <SignalCard />
-
-            </div>
-
-
-
-            <div className="mt-8">
-
-              <AIFocusSelector />
-
-            </div>
-
-
-
-            <div className="mt-8">
-
-              <MarketChart />
-
-            </div>
-
-
-
-            <div className="mt-8 grid grid-cols-2 gap-6">
-
-
-              <AIScanner />
-
-
-              <AIBrainCard />
-
-
-              <Watchlist />
-
-
-            </div>
-
-
-
-            <div className="mt-8">
-
-              <MarketCard />
-
-            </div>
-
-
-
-          </main>
-
-
-        </div>
-
-
-      </Layout>
-
-
+              <div className="mt-8">
+                <MarketCard />
+              </div>
+            </main>
+          </div>
+        </Layout>
+      </SchedulerProvider>
     </AIFocusProvider>
-
-
   );
-
 }

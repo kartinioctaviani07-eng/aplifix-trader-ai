@@ -12,157 +12,175 @@ import {
   SchedulerResult,
 } from "@/lib/types/SchedulerTypes";
 
+import {
+  useAIFocus,
+} from "@/context/AIFocusContext";
+
 type SchedulerContextType = {
-
   data: SchedulerResult | null;
-
   loading: boolean;
-
   refresh: () => Promise<void>;
-
 };
 
 const SchedulerContext =
-  createContext<SchedulerContextType | null>(
-    null
-  );
+  createContext<SchedulerContextType | null>(null);
 
 export function SchedulerProvider({
-
   children,
-
-}:{
-
+}: {
   children: ReactNode;
+}) {
+  const { focus } = useAIFocus();
 
-}){
+  const [data, setData] =
+    useState<SchedulerResult | null>(null);
 
-  const [
-
-    data,
-
-    setData,
-
-  ] =
-    useState<SchedulerResult | null>(
-      null
-    );
-
-  const [
-
-    loading,
-
-    setLoading,
-
-  ] =
+  const [loading, setLoading] =
     useState(true);
 
-  async function refresh(){
+  const symbol =
+    focus?.symbol ?? "BTCUSDT";
 
-    try{
+  useEffect(() => {
+    let cancelled = false;
 
+    async function loadScheduler() {
+      try {
+        setLoading(true);
+
+        const response =
+          await fetch(
+            `/api/scheduler?symbol=${encodeURIComponent(symbol)}`,
+            {
+              cache: "no-store",
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            "Scheduler API gagal."
+          );
+        }
+
+        const result =
+          await response.json();
+
+        if (
+          cancelled
+        ) {
+          return;
+        }
+
+        if (
+          result.success &&
+          result.data
+        ) {
+          setData(
+            result.data
+          );
+        } else {
+          setData(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Scheduler Context Error:",
+            error
+          );
+
+          setData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadScheduler();
+
+    const timer =
+      window.setInterval(
+        () => {
+          void loadScheduler();
+        },
+        15000
+      );
+
+    return () => {
+      cancelled = true;
+
+      window.clearInterval(
+        timer
+      );
+    };
+  }, [symbol]);
+
+  async function refresh(): Promise<void> {
+    try {
       setLoading(true);
 
       const response =
         await fetch(
-
-          "/api/scheduler?symbol=BTCUSDT",
-
+          `/api/scheduler?symbol=${encodeURIComponent(symbol)}`,
           {
-
-            cache:"no-store",
-
+            cache: "no-store",
           }
-
         );
+
+      if (!response.ok) {
+        throw new Error(
+          "Scheduler API gagal."
+        );
+      }
 
       const result =
         await response.json();
 
-      if(result.success){
-
+      if (
+        result.success &&
+        result.data
+      ) {
         setData(
           result.data
         );
-
+      } else {
+        setData(null);
       }
-
-    }catch(error){
-
+    } catch (error) {
       console.error(
-
-        "Scheduler Context Error",
-
+        "Scheduler Refresh Error:",
         error
-
       );
-
-    }finally{
-
+    } finally {
       setLoading(false);
-
     }
-
   }
 
-  useEffect(()=>{
-
-    refresh();
-
-    const timer =
-      setInterval(
-
-        refresh,
-
-        5000
-
-      );
-
-    return()=>clearInterval(timer);
-
-  },[]);
-
-  return(
-
+  return (
     <SchedulerContext.Provider
-
       value={{
-
         data,
-
         loading,
-
         refresh,
-
       }}
-
     >
-
       {children}
-
     </SchedulerContext.Provider>
-
   );
-
 }
 
-export function useScheduler(){
-
+export function useScheduler() {
   const context =
     useContext(
       SchedulerContext
     );
 
-  if(!context){
-
+  if (!context) {
     throw new Error(
-
       "useScheduler must be used inside SchedulerProvider"
-
     );
-
   }
 
   return context;
-
 }

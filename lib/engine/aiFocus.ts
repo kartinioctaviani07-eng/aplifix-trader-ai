@@ -1,93 +1,113 @@
 import {
-  marketScanner,
-  MarketScanResult,
-} from "./marketScanner";
-
-import {
   marketHub,
 } from "@/lib/core/market/MarketHub";
 
+import {
+  marketIntelligenceEngine,
+  MarketOpportunity,
+} from "./marketIntelligenceEngine";
 
 type FocusMode =
   | "AUTO"
   | "MANUAL";
 
+export type AIFocusMarket = {
+  symbol: string;
+  price: number;
+  change24h: number;
+  volume: number;
+  score: number;
+};
 
 class AIFocus {
-
   private current:
-    MarketScanResult | null = null;
+    AIFocusMarket | null = null;
 
   private updatedAt = 0;
 
   private mode:
     FocusMode = "AUTO";
 
+  private readonly autoRefreshMs =
+    30000;
 
-  async getFocus()
-    : Promise<MarketScanResult | null> {
-
-
+  async getFocus(): Promise<AIFocusMarket | null> {
     if (
       this.mode === "MANUAL" &&
       this.current
     ) {
-
       return this.current;
-
     }
-
 
     const now =
       Date.now();
 
-
     if (
       this.current &&
-      now - this.updatedAt < 30000
+      now - this.updatedAt <
+        this.autoRefreshMs
     ) {
-
       return this.current;
-
     }
 
+    try {
+      const intelligence =
+        await marketIntelligenceEngine.scan();
 
-    const markets =
-      await marketScanner.scan();
+      const best:
+        MarketOpportunity | undefined =
+        intelligence.best;
 
+      if (!best) {
+        return this.current;
+      }
 
-    this.current =
-      markets.length > 0
-        ? markets[0]
-        : null;
+      const ticker =
+        await marketHub.getTicker(
+          best.symbol
+        );
 
+      this.current = {
+        symbol:
+          ticker.symbol,
 
-    this.updatedAt =
-      now;
+        price:
+          ticker.price,
 
+        change24h:
+          ticker.changePercent,
 
-    return this.current;
+        volume:
+          ticker.volume,
 
+        score:
+          best.score,
+      };
+
+      this.updatedAt =
+        now;
+
+      return this.current;
+    } catch (error) {
+      console.error(
+        "AI Focus AUTO Error:",
+        error
+      );
+
+      return this.current;
+    }
   }
 
-
-
   async setManualFocus(
-    symbol:string
-  ) {
-
-
+    symbol: string
+  ): Promise<AIFocusMarket | null> {
     try {
-
-
       const ticker =
         await marketHub.getTicker(
           symbol
         );
 
-
       this.current = {
-
         symbol:
           ticker.symbol,
 
@@ -102,70 +122,48 @@ class AIFocus {
 
         score:
           0,
-
       };
-
 
       this.mode =
         "MANUAL";
 
-
       this.updatedAt =
         Date.now();
 
-
       return this.current;
-
-
-    }
-    catch(error){
-
+    } catch (error) {
       console.error(
-        "Manual focus error",
+        "Manual focus error:",
         error
       );
 
       return null;
-
     }
-
   }
 
-
-
-  setAuto(){
-
+  setAuto(): void {
     this.mode =
       "AUTO";
 
     this.current =
       null;
 
+    this.updatedAt =
+      0;
   }
 
-
-
-  getMode(){
-
+  getMode(): FocusMode {
     return this.mode;
-
   }
 
-
-
-  clear(){
-
+  clear(): void {
     this.current =
       null;
 
     this.updatedAt =
       0;
-
   }
-
-
 }
-
 
 export const aiFocus =
   new AIFocus();

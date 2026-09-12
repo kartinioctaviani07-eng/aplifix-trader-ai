@@ -3,8 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 
-import { SchedulerProvider } from "@/context/SchedulerContext";
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,15 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-950 text-white">
-
-        <SchedulerProvider>
-
-          {children}
-
-        </SchedulerProvider>
-
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
