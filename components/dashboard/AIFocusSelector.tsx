@@ -19,6 +19,7 @@ export default function AIFocusSelector() {
   const {
     focus,
     setManualFocus,
+    setAutoFocus,
   } = useAIFocus();
 
   const [mode, setMode] =
@@ -55,32 +56,10 @@ export default function AIFocusSelector() {
         return;
       }
 
-      const response =
-        await fetch(
-          "/api/ai-focus?mode=AUTO",
-          {
-            method: "GET",
-            cache: "no-store",
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          "AI Focus API gagal."
-        );
-      }
-
-      const result =
-        await response.json();
-
-      if (!result.success) {
-        throw new Error(
-          "AI Focus tidak berhasil."
-        );
-      }
+      await setAutoFocus();
 
       setStatus(
-        `AUTO: ${result.focus?.symbol ?? "-"}`
+        "AUTO: AI sedang memilih market terbaik"
       );
     } catch (error) {
       console.error(
