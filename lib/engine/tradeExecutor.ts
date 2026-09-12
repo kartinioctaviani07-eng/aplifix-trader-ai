@@ -1,83 +1,74 @@
 import {
+  candleHub,
+} from "@/lib/core/market/CandleHub";
+
+import "@/lib/core/market/candleIndex";
+
+import {
   positionManager,
   Position,
 } from "./PositionManager";
 
-import {
-  getMarketData,
-} from "@/lib/marketData";
-
-
-export function executeTrade(
+export async function executeTrade(
   symbol: string,
   action: "BUY" | "SELL"
-) {
-
+): Promise<Position | null> {
 
   const candles =
-    getMarketData();
-
+    await candleHub.getCandles(
+      symbol,
+      "1h"
+    );
 
   const lastCandle =
-    candles[candles.length - 1];
-
+    candles.at(-1);
 
   if (!lastCandle) {
-
     return null;
-
   }
-
 
   const entryPrice =
     lastCandle.close;
 
-
   const position: Position = {
-
-    id:
-      crypto.randomUUID(),
+    id: crypto.randomUUID(),
 
     symbol,
 
-    side:
-      action,
+    side: action,
 
     entryPrice,
 
     currentPrice:
       entryPrice,
 
-    quantity:
-      0.01,
+    quantity: 0.01,
 
     stopLoss:
       action === "BUY"
         ? entryPrice * 0.98
         : entryPrice * 1.02,
 
-
     takeProfit:
       action === "BUY"
         ? entryPrice * 1.04
         : entryPrice * 0.96,
 
-
     openedAt:
       Date.now(),
 
-
     status:
       "OPEN",
-
   };
 
+  const opened =
+    positionManager.openPosition(
+      position
+    );
 
-  positionManager.openPosition(
-    position
-  );
-
+  if (!opened) {
+    return null;
+  }
 
   return position;
-
 }

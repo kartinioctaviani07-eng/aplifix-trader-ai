@@ -1,18 +1,26 @@
 import {
+  NextRequest,
   NextResponse,
 } from "next/server";
 
 import {
-  runAutoController,
-} from "@/lib/engine/autoController";
+  runCEO,
+} from "@/lib/engine/ceoOrchestrator";
 
-export async function GET() {
+export async function GET(
+  request: NextRequest
+) {
 
   try {
 
+    const symbol =
+      request.nextUrl.searchParams.get(
+        "symbol"
+      ) ?? "BTCUSDT";
+
     const result =
-      await runAutoController(
-        "BTCUSDT"
+      await runCEO(
+        symbol
       );
 
     return NextResponse.json({
@@ -23,7 +31,7 @@ export async function GET() {
   } catch (error) {
 
     console.error(
-      "Auto Trader API Error:",
+      "CEO APLIFIX ERROR:",
       error
     );
 
@@ -34,7 +42,7 @@ export async function GET() {
         message:
           error instanceof Error
             ? error.message
-            : "Auto Trader gagal",
+            : "CEO APLIFIX gagal menjalankan analisis.",
       },
       {
         status: 500,

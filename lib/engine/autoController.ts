@@ -1,4 +1,10 @@
 import {
+  candleHub,
+} from "@/lib/core/market/CandleHub";
+
+import "@/lib/core/market/candleIndex";
+
+import {
   aiBrain,
 } from "./aiBrain";
 
@@ -10,26 +16,14 @@ import {
   positionManager,
 } from "./PositionManager";
 
-import {
-  getMarketData,
-} from "../marketData";
-
 export async function runAutoController(
   symbol: string
 ) {
 
-  const rawCandles =
-    getMarketData();
-
   const candles =
-    rawCandles.map(
-      (candle) => ({
-        ...candle,
-        time:
-          new Date(
-            candle.time
-          ).getTime(),
-      })
+    await candleHub.getCandles(
+      symbol,
+      "1h"
     );
 
   const brain =
@@ -50,7 +44,6 @@ export async function runAutoController(
     ) {
 
       return {
-
         executed: false,
 
         message:
@@ -58,8 +51,9 @@ export async function runAutoController(
 
         decision,
 
+        risk:
+          brain.risk,
       };
-
     }
 
     if (
@@ -67,7 +61,6 @@ export async function runAutoController(
     ) {
 
       return {
-
         executed: false,
 
         message:
@@ -77,18 +70,14 @@ export async function runAutoController(
           brain.risk,
 
         decision,
-
       };
-
     }
 
     const existing =
       positionManager
         .getOpenPositions()
         .filter(
-          (
-            position
-          ) =>
+          (position) =>
             position.symbol === symbol
         );
 
@@ -97,7 +86,6 @@ export async function runAutoController(
     ) {
 
       return {
-
         executed: false,
 
         message:
@@ -107,51 +95,75 @@ export async function runAutoController(
           existing,
 
         decision,
-
       };
-
     }
 
     const position =
-      executeTrade(
+      await executeTrade(
         symbol,
         "BUY"
       );
 
-    return {
+    if (!position) {
 
+      return {
+        executed: false,
+
+        message:
+          "Posisi BUY gagal dibuka",
+
+        decision,
+      };
+    }
+
+    return {
       executed: true,
 
-      action:
-        "BUY",
+      action: "BUY" as const,
 
       position,
 
       decision,
 
+      risk:
+        brain.risk,
     };
-
   }
 
   if (
     decision.action === "SELL"
   ) {
 
-    return {
+    const position =
+      positionManager.getPosition(
+        symbol
+      );
 
+    if (!position) {
+
+      return {
+        executed: false,
+
+        message:
+          "SELL tidak memiliki posisi terbuka",
+
+        decision,
+      };
+    }
+
+    return {
       executed: false,
 
       message:
-        "SELL controller belum diaktifkan",
+        "SELL menunggu position monitor",
+
+      position,
 
       decision,
-
     };
-
   }
 
   return {
-
     executed: false,
 
     message:
@@ -159,6 +171,7 @@ export async function runAutoController(
 
     decision,
 
+    risk:
+      brain.risk,
   };
-
 }

@@ -2,30 +2,26 @@ import {
   positionManager,
 } from "./PositionManager";
 
-
 import {
   calculateProfit,
 } from "./profitEngine";
-
 
 import {
   tradeHistory,
 } from "./tradeHistory";
 
-
+import {
+  ceoAccount,
+} from "./ceoAccount";
 
 export function monitorPositions(
   symbol: string,
   price: number
 ) {
-
-
   positionManager.updatePrice(
     symbol,
     price
   );
-
-
 
   const positions =
     positionManager
@@ -35,130 +31,124 @@ export function monitorPositions(
           position.symbol === symbol
       );
 
-
-
-  const closed = [];
-
-
+  const closed: Array<{
+    id: string;
+    reason:
+      | "TAKE PROFIT"
+      | "STOP LOSS";
+    profit: ReturnType<
+      typeof calculateProfit
+    >;
+  }> = [];
 
   for (const position of positions) {
-
 
     let reason:
       | "TAKE PROFIT"
       | "STOP LOSS"
       | null = null;
 
-
-
     if (
-      position.side === "BUY" &&
-      price >= position.takeProfit
+      position.side === "BUY"
     ) {
-
-      reason =
-        "TAKE PROFIT";
-
+      if (
+        price >=
+        position.takeProfit
+      ) {
+        reason =
+          "TAKE PROFIT";
+      } else if (
+        price <=
+        position.stopLoss
+      ) {
+        reason =
+          "STOP LOSS";
+      }
     }
 
-
-
     if (
-      position.side === "BUY" &&
-      price <= position.stopLoss
+      position.side === "SELL"
     ) {
-
-      reason =
-        "STOP LOSS";
-
+      if (
+        price <=
+        position.takeProfit
+      ) {
+        reason =
+          "TAKE PROFIT";
+      } else if (
+        price >=
+        position.stopLoss
+      ) {
+        reason =
+          "STOP LOSS";
+      }
     }
 
+    if (!reason) {
+      continue;
+    }
 
-
-    if (
-      reason
-    ) {
-
-
-      const profit =
-        calculateProfit(
-          position,
-          price
-        );
-
-
-
-      tradeHistory.add({
-
-        id:
-          position.id,
-
-        symbol:
-          position.symbol,
-
-        side:
-          position.side,
-
-        entryPrice:
-          position.entryPrice,
-
-        exitPrice:
-          price,
-
-        quantity:
-          position.quantity,
-
-        profit:
-          profit.profit,
-
-        profitPercent:
-          profit.profitPercent,
-
-        result:
-          profit.result,
-
-        openedAt:
-          position.openedAt,
-
-        closedAt:
-          Date.now(),
-
-      });
-
-
-
-      positionManager.closePosition(
-        position.id
+    const profit =
+      calculateProfit(
+        position,
+        price
       );
 
+    ceoAccount.applyProfit(
+      profit.profit
+    );
 
+    tradeHistory.add({
+      id:
+        position.id,
 
-      closed.push({
+      symbol:
+        position.symbol,
 
-        id:
-          position.id,
+      side:
+        position.side,
 
-        reason,
+      entryPrice:
+        position.entryPrice,
 
-        profit,
+      exitPrice:
+        price,
 
-      });
+      quantity:
+        position.quantity,
 
+      profit:
+        profit.profit,
 
-    }
+      profitPercent:
+        profit.profitPercent,
 
+      result:
+        profit.result,
 
+      openedAt:
+        position.openedAt,
+
+      closedAt:
+        Date.now(),
+    });
+
+    positionManager.closePosition(
+      position.id
+    );
+
+    closed.push({
+      id:
+        position.id,
+
+      reason,
+
+      profit,
+    });
   }
 
-
-
   return {
-
     price,
-
     closed,
-
   };
-
-
 }
