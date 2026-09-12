@@ -60,6 +60,135 @@ export type CEOBacktestResult = {
   diagnostics: BacktestDiagnostics;
 };
 
+function clampScore(
+  value: number
+): number {
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(value)
+    )
+  );
+}
+
+function calculateRiskScore(
+  atrPercent: number
+): number {
+
+  if (atrPercent < 1) {
+    return 100;
+  }
+
+  if (atrPercent < 1.5) {
+    return 90;
+  }
+
+  if (atrPercent < 2) {
+    return 80;
+  }
+
+  if (atrPercent < 2.5) {
+    return 70;
+  }
+
+  if (atrPercent < 4) {
+    return 50;
+  }
+
+  return 30;
+}
+
+function calculateMarketProxyScores(
+  technical: ReturnType<typeof calculateIndicators>,
+  consensusScore: number
+) {
+
+  const trendScore =
+    technical.trend === "Bullish"
+      ? 100
+      : 30;
+
+  const rsiScore =
+    technical.rsi >= 50 &&
+    technical.rsi <= 70
+      ? 100
+      : technical.rsi > 70
+        ? 60
+        : technical.rsi >= 30
+          ? 50
+          : 20;
+
+  const macdScore =
+    technical.macd >= technical.signal
+      ? 90
+      : 30;
+
+  const adxScore =
+    technical.adx >= 25
+      ? 90
+      : technical.adx >= 20
+        ? 70
+        : 50;
+
+  const strengthScore =
+    clampScore(
+      technical.trendStrength * 10
+    );
+
+  const momentumScore =
+    clampScore(
+      (
+        trendScore +
+        rsiScore +
+        macdScore +
+        strengthScore
+      ) / 4
+    );
+
+  const newsScore =
+    clampScore(
+      (
+        momentumScore +
+        consensusScore
+      ) / 2
+    );
+
+  const fundamentalScore =
+    clampScore(
+      (
+        trendScore +
+        strengthScore +
+        adxScore
+      ) / 3
+    );
+
+  const macroScore =
+    clampScore(
+      (
+        adxScore +
+        strengthScore +
+        consensusScore
+      ) / 3
+    );
+
+  const sentimentScore =
+    clampScore(
+      (
+        rsiScore +
+        momentumScore +
+        consensusScore
+      ) / 3
+    );
+
+  return {
+    newsScore,
+    fundamentalScore,
+    macroScore,
+    sentimentScore,
+  };
+}
+
 export function runCEOBacktest(
   candles: Candle[],
   initialBalance = 10_000_000
@@ -253,24 +382,40 @@ export function runCEOBacktest(
         ) / 2
       );
 
+    const proxyScores =
+      calculateMarketProxyScores(
+        technical,
+        consensus.score
+      );
+
+    const riskScore =
+      calculateRiskScore(
+        technical.atr > 0
+          ? (
+              technical.atr /
+              current.close
+            ) *
+            100
+          : 0
+      );
+
     const decision =
       makeDecision({
         technicalScore,
 
         newsScore:
-          50,
+          proxyScores.newsScore,
 
         fundamentalScore:
-          50,
+          proxyScores.fundamentalScore,
 
         macroScore:
-          50,
+          proxyScores.macroScore,
 
         sentimentScore:
-          50,
+          proxyScores.sentimentScore,
 
-        riskScore:
-          100,
+        riskScore,
 
         learningScore:
           50,
@@ -301,7 +446,10 @@ export function runCEOBacktest(
       consensus.score
     );
 
-    if (decision.action === "BUY" && decision.confidence < 75) {
+    if (
+      decision.action === "BUY" &&
+      decision.confidence < 75
+    ) {
       diagnostics.buyConfidenceBelow75 += 1;
     }
 
@@ -461,17 +609,24 @@ export function runCEOBacktest(
       ),
 
     trades,
+
     diagnostics: {
       ...diagnostics,
-      highestConfidence: Number(
-        diagnostics.highestConfidence.toFixed(2)
-      ),
-      highestTechnicalScore: Number(
-        diagnostics.highestTechnicalScore.toFixed(2)
-      ),
-      highestConsensusScore: Number(
-        diagnostics.highestConsensusScore.toFixed(2)
-      ),
+
+      highestConfidence:
+        Number(
+          diagnostics.highestConfidence.toFixed(2)
+        ),
+
+      highestTechnicalScore:
+        Number(
+          diagnostics.highestTechnicalScore.toFixed(2)
+        ),
+
+      highestConsensusScore:
+        Number(
+          diagnostics.highestConsensusScore.toFixed(2)
+        ),
     },
   };
 }
