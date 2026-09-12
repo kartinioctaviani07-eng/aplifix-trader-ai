@@ -33,6 +33,18 @@ export type BacktestTrade = {
     | "BREAK EVEN";
 };
 
+export type BacktestDiagnostics = {
+  buySignals: number;
+  sellSignals: number;
+  holdSignals: number;
+  waitSignals: number;
+  buyConfidenceBelow75: number;
+  eligibleBuySignals: number;
+  highestConfidence: number;
+  highestTechnicalScore: number;
+  highestConsensusScore: number;
+};
+
 export type CEOBacktestResult = {
   initialBalance: number;
   finalBalance: number;
@@ -45,6 +57,7 @@ export type CEOBacktestResult = {
   profitFactor: number;
   maxDrawdown: number;
   trades: BacktestTrade[];
+  diagnostics: BacktestDiagnostics;
 };
 
 export function runCEOBacktest(
@@ -61,6 +74,18 @@ export function runCEOBacktest(
   let maxDrawdown = 0;
 
   const trades: BacktestTrade[] = [];
+
+  const diagnostics: BacktestDiagnostics = {
+    buySignals: 0,
+    sellSignals: 0,
+    holdSignals: 0,
+    waitSignals: 0,
+    buyConfidenceBelow75: 0,
+    eligibleBuySignals: 0,
+    highestConfidence: 0,
+    highestTechnicalScore: 0,
+    highestConsensusScore: 0,
+  };
 
   let openTrade:
     | {
@@ -251,12 +276,43 @@ export function runCEOBacktest(
           50,
       });
 
+    if (decision.action === "BUY") {
+      diagnostics.buySignals += 1;
+    } else if (decision.action === "SELL") {
+      diagnostics.sellSignals += 1;
+    } else if (decision.action === "HOLD") {
+      diagnostics.holdSignals += 1;
+    } else {
+      diagnostics.waitSignals += 1;
+    }
+
+    diagnostics.highestConfidence = Math.max(
+      diagnostics.highestConfidence,
+      decision.confidence
+    );
+
+    diagnostics.highestTechnicalScore = Math.max(
+      diagnostics.highestTechnicalScore,
+      technicalScore
+    );
+
+    diagnostics.highestConsensusScore = Math.max(
+      diagnostics.highestConsensusScore,
+      consensus.score
+    );
+
+    if (decision.action === "BUY" && decision.confidence < 75) {
+      diagnostics.buyConfidenceBelow75 += 1;
+    }
+
     if (
       decision.action !== "BUY" ||
       decision.confidence < 75
     ) {
       continue;
     }
+
+    diagnostics.eligibleBuySignals += 1;
 
     const stopLossPercent =
       2;
@@ -405,5 +461,17 @@ export function runCEOBacktest(
       ),
 
     trades,
+    diagnostics: {
+      ...diagnostics,
+      highestConfidence: Number(
+        diagnostics.highestConfidence.toFixed(2)
+      ),
+      highestTechnicalScore: Number(
+        diagnostics.highestTechnicalScore.toFixed(2)
+      ),
+      highestConsensusScore: Number(
+        diagnostics.highestConsensusScore.toFixed(2)
+      ),
+    },
   };
 }
