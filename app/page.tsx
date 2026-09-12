@@ -11,6 +11,7 @@ import MarketChart from "@/components/dashboard/MarketChart";
 import AIScanner from "@/components/dashboard/AIScanner";
 import AIBrainCard from "@/components/dashboard/AIBrainCard";
 import AIFocusSelector from "@/components/dashboard/AIFocusSelector";
+import CEOCard from "@/components/dashboard/CEOCard";
 
 import { AIFocusProvider } from "@/context/AIFocusContext";
 import { SchedulerProvider } from "@/context/SchedulerContext";
@@ -38,6 +39,10 @@ export default function Home() {
                 <BalanceCard />
                 <ProfitCard />
                 <SignalCard />
+              </div>
+
+              <div className="mt-8">
+                <CEOCard />
               </div>
 
               <div className="mt-8">
