@@ -1,17 +1,9 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Card from "@/components/ui/Card";
-
-import {
-  useAIFocus,
-} from "@/context/AIFocusContext";
-
+import { useAIFocus } from "@/context/AIFocusContext";
 
 type MarketData = {
   symbol: string;
@@ -23,7 +15,6 @@ type MarketData = {
   volume: number;
 };
 
-
 type Candle = {
   time: number;
   open: number;
@@ -32,18 +23,15 @@ type Candle = {
   close: number;
 };
 
-
 type MarketResponse = {
   success: boolean;
   data?: MarketData;
 };
 
-
 type CandleResponse = {
   success: boolean;
   data?: Candle[];
 };
-
 
 type MarketCardState = {
   market: MarketData | null;
@@ -51,7 +39,6 @@ type MarketCardState = {
   loading: boolean;
   error: boolean;
 };
-
 
 const SYMBOLS = [
   "BTCUSDT",
@@ -63,116 +50,106 @@ const SYMBOLS = [
   "ADAUSDT",
 ] as const;
 
-
-function formatPrice(
-  price: number
-): string {
+function formatPrice(price: number): string {
   if (price >= 1000) {
-    return price.toLocaleString(
-      "en-US",
-      {
-        maximumFractionDigits: 2,
-      }
-    );
+    return price.toLocaleString("en-US", {
+      maximumFractionDigits: 2,
+    });
   }
 
   if (price >= 1) {
-    return price.toLocaleString(
-      "en-US",
-      {
-        maximumFractionDigits: 4,
-      }
-    );
+    return price.toLocaleString("en-US", {
+      maximumFractionDigits: 4,
+    });
   }
 
-  return price.toLocaleString(
-    "en-US",
-    {
-      maximumFractionDigits: 6,
-    }
-  );
+  return price.toLocaleString("en-US", {
+    maximumFractionDigits: 6,
+  });
 }
 
-
-function MiniChart({
+function MiniCandlestickChart({
   candles,
 }: {
   candles: Candle[];
 }) {
-  const visibleCandles =
-    useMemo(
-      () => candles.slice(-30),
-      [candles]
+  const visibleCandles = useMemo(
+    () => candles.slice(-30),
+    [candles]
+  );
+
+  const chart = useMemo(() => {
+    if (visibleCandles.length < 2) {
+      return null;
+    }
+
+    const width = 300;
+    const height = 105;
+    const paddingX = 5;
+    const paddingY = 8;
+
+    const minPrice = Math.min(
+      ...visibleCandles.map((candle) => candle.low)
     );
 
+    const maxPrice = Math.max(
+      ...visibleCandles.map((candle) => candle.high)
+    );
 
-  const points =
-    useMemo(() => {
-      if (
-        visibleCandles.length < 2
-      ) {
-        return "";
+    const range = maxPrice - minPrice || 1;
+    const chartHeight = height - paddingY * 2;
+    const chartWidth = width - paddingX * 2;
+
+    const candleSlot =
+      chartWidth / visibleCandles.length;
+
+    const candleWidth = Math.max(
+      3,
+      Math.min(7, candleSlot * 0.62)
+    );
+
+    const priceToY = (price: number) =>
+      paddingY +
+      ((maxPrice - price) / range) *
+        chartHeight;
+
+    const renderedCandles = visibleCandles.map(
+      (candle, index) => {
+        const centerX =
+          paddingX +
+          index * candleSlot +
+          candleSlot / 2;
+
+        const openY = priceToY(candle.open);
+        const closeY = priceToY(candle.close);
+        const highY = priceToY(candle.high);
+        const lowY = priceToY(candle.low);
+
+        return {
+          centerX,
+          bodyTop: Math.min(openY, closeY),
+          bodyHeight: Math.max(
+            2,
+            Math.abs(closeY - openY)
+          ),
+          highY,
+          lowY,
+          bullish: candle.close >= candle.open,
+        };
       }
+    );
 
+    return {
+      width,
+      height,
+      candleWidth,
+      candles: renderedCandles,
+    };
+  }, [visibleCandles]);
 
-      const closes =
-        visibleCandles.map(
-          (candle) =>
-            candle.close
-        );
-
-
-      const min =
-        Math.min(...closes);
-
-      const max =
-        Math.max(...closes);
-
-      const range =
-        max - min || 1;
-
-
-      const width = 220;
-      const height = 70;
-      const padding = 4;
-
-
-      return closes
-        .map(
-          (
-            close,
-            index
-          ) => {
-            const x =
-              padding +
-              (index /
-                Math.max(
-                  closes.length - 1,
-                  1
-                )) *
-                (width -
-                  padding * 2);
-
-
-            const y =
-              height -
-              padding -
-              ((close - min) /
-                range) *
-                (height -
-                  padding * 2);
-
-
-            return `${x},${y}`;
-          }
-        )
-        .join(" ");
-    }, [visibleCandles]);
-
-
-  if (!points) {
+  if (!chart) {
     return (
-      <div className="flex h-[70px] items-center justify-center rounded-lg bg-slate-900/70">
+      <div className="flex h-[105px] items-center justify-center rounded-lg bg-slate-900/70">
         <span className="text-xs text-slate-500">
           Chart unavailable
         </span>
@@ -180,44 +157,48 @@ function MiniChart({
     );
   }
 
-
-  const first =
-    visibleCandles[0]?.close ??
-    0;
-
-
-  const last =
-    visibleCandles.at(-1)
-      ?.close ?? 0;
-
-
-  const isUp =
-    last >= first;
-
-
   return (
-    <div className="h-[70px] overflow-hidden rounded-lg bg-slate-900/70">
+    <div className="h-[105px] overflow-hidden rounded-lg bg-slate-900/70">
       <svg
-        viewBox="0 0 220 70"
+        viewBox={`0 0 ${chart.width} ${chart.height}`}
         className="h-full w-full"
         preserveAspectRatio="none"
       >
-        <polyline
-          points={points}
-          fill="none"
-          stroke={
-            isUp
-              ? "rgb(52 211 153)"
-              : "rgb(248 113 113)"
-          }
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
+        {chart.candles.map((candle, index) => {
+          const candleColor = candle.bullish
+            ? "rgb(52 211 153)"
+            : "rgb(248 113 113)";
+
+          return (
+            <g key={`${index}-${candle.centerX}`}>
+              <line
+                x1={candle.centerX}
+                x2={candle.centerX}
+                y1={candle.highY}
+                y2={candle.lowY}
+                stroke={candleColor}
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+
+              <rect
+                x={
+                  candle.centerX -
+                  chart.candleWidth / 2
+                }
+                y={candle.bodyTop}
+                width={chart.candleWidth}
+                height={candle.bodyHeight}
+                rx="0.8"
+                fill={candleColor}
+              />
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
 }
-
 
 function MarketMiniCard({
   symbol,
@@ -235,10 +216,8 @@ function MarketMiniCard({
     error,
   } = state;
 
-
   const changePositive =
     (market?.changePercent ?? 0) >= 0;
-
 
   return (
     <div
@@ -257,276 +236,237 @@ function MarketMiniCard({
           </h3>
 
           <p className="mt-1 text-xs text-slate-500">
-            {active
-              ? "AI Focus"
-              : "Market"}
+            Crypto Market
           </p>
         </div>
 
-
-        {market && (
-          <span
-            className={
-              changePositive
-                ? "text-xs font-semibold text-emerald-400"
-                : "text-xs font-semibold text-red-400"
-            }
-          >
-            {changePositive
-              ? "+"
-              : ""}
-            {market.changePercent.toFixed(
-              2
-            )}
-            %
+        {active && (
+          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-[10px] font-medium text-emerald-300">
+            AI Focus
           </span>
         )}
       </div>
 
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-lg font-bold text-white">
+            {market
+              ? formatPrice(market.price)
+              : loading
+                ? "Loading..."
+                : "--"}
+          </p>
 
-      <div className="mt-4">
-        <MiniChart
-          candles={candles}
-        />
+          {market && (
+            <p
+              className={[
+                "mt-1 text-xs font-semibold",
+                changePositive
+                  ? "text-emerald-400"
+                  : "text-red-400",
+              ].join(" ")}
+            >
+              {changePositive ? "+" : ""}
+              {market.changePercent.toFixed(2)}%
+            </p>
+          )}
+        </div>
       </div>
 
-
-      <div className="mt-4">
-        {loading && !market ? (
-          <p className="text-sm text-slate-500">
-            Loading market...
-          </p>
-        ) : error && !market ? (
-          <p className="text-sm text-red-400">
-            Market data unavailable
-          </p>
-        ) : market ? (
-          <>
-            <p className="text-xl font-bold text-white">
-              $
-              {formatPrice(
-                market.price
-              )}
-            </p>
-
-
-            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <p className="text-slate-500">
-                  High
-                </p>
-
-                <p className="mt-1 text-slate-300">
-                  $
-                  {formatPrice(
-                    market.high
-                  )}
-                </p>
-              </div>
-
-
-              <div>
-                <p className="text-slate-500">
-                  Low
-                </p>
-
-                <p className="mt-1 text-slate-300">
-                  $
-                  {formatPrice(
-                    market.low
-                  )}
-                </p>
-              </div>
-            </div>
-          </>
+      <div className="mt-3">
+        {error ? (
+          <div className="flex h-[105px] items-center justify-center rounded-lg bg-slate-900/70">
+            <span className="text-xs text-slate-500">
+              Market data unavailable
+            </span>
+          </div>
         ) : (
-          <p className="text-sm text-slate-500">
-            Waiting for market data...
-          </p>
+          <MiniCandlestickChart
+            candles={candles}
+          />
         )}
       </div>
+
+      {market && (
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg bg-slate-900/60 p-2">
+            <p className="text-slate-500">
+              High
+            </p>
+
+            <p className="mt-1 font-medium text-slate-200">
+              {formatPrice(market.high)}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-slate-900/60 p-2">
+            <p className="text-slate-500">
+              Low
+            </p>
+
+            <p className="mt-1 font-medium text-slate-200">
+              {formatPrice(market.low)}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-
 export default function MarketCard() {
-  const {
-    focus,
-  } = useAIFocus();
-
+  const { focus } = useAIFocus();
 
   const [states, setStates] =
-    useState<
-      Record<
-        string,
-        MarketCardState
-      >
-    >(() =>
+    useState<Record<
+      string,
+      MarketCardState
+    >>(() =>
       Object.fromEntries(
-        SYMBOLS.map(
-          (symbol) => [
-            symbol,
-            {
-              market: null,
-              candles: [],
-              loading: true,
-              error: false,
-            },
-          ]
-        )
+        SYMBOLS.map((symbol) => [
+          symbol,
+          {
+            market: null,
+            candles: [],
+            loading: true,
+            error: false,
+          },
+        ])
       )
     );
-
 
   useEffect(() => {
     let cancelled = false;
 
-
-    async function loadSymbol(
-      symbol: string
-    ) {
+    async function loadSymbol(symbol: string) {
       try {
         const [
           marketResponse,
           candleResponse,
         ] = await Promise.all([
           fetch(
-            `/api/market?symbol=${symbol}`,
+            `/api/market?symbol=${encodeURIComponent(symbol)}`,
             {
               cache: "no-store",
             }
           ),
-
           fetch(
-            `/api/candles?symbol=${symbol}&interval=1h`,
+            `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1h`,
             {
               cache: "no-store",
             }
           ),
         ]);
 
+        if (!marketResponse.ok) {
+          throw new Error(
+            `Market request failed for ${symbol}`
+          );
+        }
 
-        const marketResult:
-          MarketResponse =
-          await marketResponse.json();
+        const marketData =
+          (await marketResponse.json()) as MarketResponse;
 
-
-        const candleResult:
-          CandleResponse =
-          await candleResponse.json();
-
+        const candleData =
+          candleResponse.ok
+            ? ((await candleResponse.json()) as CandleResponse)
+            : null;
 
         if (cancelled) {
           return;
         }
 
-
-        setStates(
-          (previous) => ({
-            ...previous,
-
-            [symbol]: {
-              market:
-                marketResult.success
-                  ? marketResult.data ??
-                    null
-                  : previous[symbol]
-                      ?.market ??
-                    null,
-
-              candles:
-                candleResult.success
-                  ? candleResult.data ??
-                    []
-                  : previous[symbol]
-                      ?.candles ??
-                    [],
-
-              loading: false,
-
-              error:
-                !marketResult.success &&
-                !candleResult.success,
-            },
-          })
-        );
+        setStates((current) => ({
+          ...current,
+          [symbol]: {
+            market:
+              marketData.success &&
+              marketData.data
+                ? marketData.data
+                : null,
+            candles:
+              candleData?.success &&
+              candleData.data
+                ? candleData.data
+                : [],
+            loading: false,
+            error:
+              !marketData.success ||
+              !marketData.data,
+          },
+        }));
       } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-
         console.error(
-          `Market load error for ${symbol}:`,
+          `Failed to load ${symbol}`,
           error
         );
 
+        if (cancelled) {
+          return;
+        }
 
-        setStates(
-          (previous) => ({
-            ...previous,
-
-            [symbol]: {
-              ...previous[symbol],
-
-              loading: false,
-              error: true,
-            },
-          })
-        );
+        setStates((current) => ({
+          ...current,
+          [symbol]: {
+            market: null,
+            candles: [],
+            loading: false,
+            error: true,
+          },
+        }));
       }
     }
 
-
     async function loadAll() {
       await Promise.all(
-        SYMBOLS.map(
-          (symbol) =>
-            loadSymbol(symbol)
+        SYMBOLS.map((symbol) =>
+          loadSymbol(symbol)
         )
       );
     }
 
+    void loadAll();
 
-    loadAll();
-
-
-    const interval =
-      window.setInterval(
-        loadAll,
-        30000
-      );
-
+    const interval = window.setInterval(() => {
+      void loadAll();
+    }, 30000);
 
     return () => {
       cancelled = true;
-
-      window.clearInterval(
-        interval
-      );
+      window.clearInterval(interval);
     };
   }, []);
 
-
   return (
     <Card title="Market Overview">
+      <div className="mb-5">
+        <h2 className="text-xl font-semibold text-white">
+          Market Overview
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-400">
+          Live crypto market overview
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {SYMBOLS.map(
-          (symbol) => (
-            <MarketMiniCard
-              key={symbol}
-              symbol={symbol}
-              state={
-                states[symbol]
+        {SYMBOLS.map((symbol) => (
+          <MarketMiniCard
+            key={symbol}
+            symbol={symbol}
+            state={
+              states[symbol] ?? {
+                market: null,
+                candles: [],
+                loading: true,
+                error: false,
               }
-              active={
-                focus?.symbol ===
-                symbol
-              }
-            />
-          )
-        )}
+            }
+            active={
+              focus?.symbol === symbol
+            }
+          />
+        ))}
       </div>
     </Card>
   );
