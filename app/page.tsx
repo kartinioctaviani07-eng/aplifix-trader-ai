@@ -197,6 +197,112 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
+      {/* PUBLIC NAVIGATION */}
+      <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-bold tracking-tight text-white"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 text-sm text-emerald-400">
+              A
+            </span>
+            <span>
+              APLIFIX
+              <span className="ml-1 text-emerald-400">DIGITAL</span>
+            </span>
+          </Link>
+
+          <nav className="hidden items-center gap-7 text-sm text-slate-400 md:flex">
+            <Link href="/" className="transition hover:text-white">
+              Home
+            </Link>
+            <Link href="/about" className="transition hover:text-white">
+              Tentang
+            </Link>
+            <Link href="/products" className="transition hover:text-white">
+              Produk
+            </Link>
+            <Link href="/markets" className="transition hover:text-white">
+              Markets
+            </Link>
+            <Link href="/partnership" className="transition hover:text-white">
+              Partnership
+            </Link>
+          </nav>
+
+          <div className="hidden items-center gap-3 md:flex">
+            <Link
+              href="/member/login"
+              className="rounded-xl px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+            >
+              Login
+            </Link>
+            <Link
+              href="/member/register"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+            >
+              Daftar Member
+            </Link>
+          </div>
+
+          <details className="relative md:hidden">
+            <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-emerald-500/40 hover:text-white">
+              <span className="text-xl leading-none">☰</span>
+            </summary>
+
+            <div className="absolute right-0 top-12 w-56 rounded-2xl border border-slate-800 bg-slate-950/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-xl">
+              <nav className="flex flex-col">
+                <Link
+                  href="/"
+                  className="rounded-xl px-4 py-3 text-sm text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                >
+                  Home
+                </Link>
+                <Link
+                  href="/about"
+                  className="rounded-xl px-4 py-3 text-sm text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                >
+                  Tentang
+                </Link>
+                <Link
+                  href="/products"
+                  className="rounded-xl px-4 py-3 text-sm text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                >
+                  Produk
+                </Link>
+                <Link
+                  href="/markets"
+                  className="rounded-xl px-4 py-3 text-sm text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                >
+                  Markets
+                </Link>
+                <Link
+                  href="/partnership"
+                  className="rounded-xl px-4 py-3 text-sm text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                >
+                  Partnership
+                </Link>
+                <div className="my-2 border-t border-slate-800" />
+                <Link
+                  href="/member/login"
+                  className="rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/member/register"
+                  className="mt-1 rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                >
+                  Daftar Member
+                </Link>
+              </nav>
+            </div>
+          </details>
+        </div>
+      </header>
+
+
       {/* HERO / DIGITAL OFFICE */}
       <section className="relative overflow-hidden border-b border-slate-800">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.08),transparent_36%)]" />
