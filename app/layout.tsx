@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+
 import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
+import AIFloatingAssistant from "@/components/public/AIFloatingAssistant";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "APLIFIX Trader AI",
-  description: "AI Trading Platform",
+  title: "APLIFIX DIGITAL INDONESIA",
+  description:
+    "Building intelligent digital systems, AI-powered software, and trading intelligence.",
 };
 
 export default function RootLayout({
@@ -25,10 +28,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="id"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        <AIFloatingAssistant />
+      </body>
     </html>
   );
 }

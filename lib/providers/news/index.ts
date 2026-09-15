@@ -1,10 +1,11 @@
 import { newsHub } from "./NewsHub";
-
-import { MockNewsProvider } from "./MockNewsProvider";
+import { rssNewsProvider } from "./RSSNewsProvider";
 
 newsHub.register(
-  new MockNewsProvider()
+  rssNewsProvider,
 );
 
 export { newsHub };
+
 export * from "./NewsProvider";
+export * from "./RSSNewsProvider";

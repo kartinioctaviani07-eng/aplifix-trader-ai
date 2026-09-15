@@ -40,8 +40,24 @@ import {
 } from "./sentimentEngine";
 
 import {
-  mockNewsProvider,
-} from "@/lib/providers/news/MockNewsProvider";
+  analyzeFundamental,
+} from "./fundamentalEngine";
+
+import {
+  analyzeMacro,
+} from "./macroEngine";
+
+import {
+  coinGeckoFundamentalProvider,
+} from "@/lib/providers/fundamental/CoinGeckoFundamentalProvider";
+
+import {
+  worldBankMacroProvider,
+} from "@/lib/providers/macro/WorldBankMacroProvider";
+
+import {
+  newsService,
+} from "@/lib/services/newsService";
 
 type TechnicalAnalysis =
   ReturnType<typeof calculateIndicators>;
@@ -54,65 +70,56 @@ type OpenPosition =
     typeof positionManager.getOpenPositions
   >[number];
 
-export interface AIBrainResult {
+type FundamentalAnalysis =
+  ReturnType<typeof analyzeFundamental>;
 
+type MacroAnalysis =
+  ReturnType<typeof analyzeMacro>;
+
+export interface AIBrainResult {
   symbol: string;
 
   technical: TechnicalAnalysis;
 
-  marketScore:
-    ReturnType<
-      typeof calculateMarketScore
-    >;
+  marketScore: ReturnType<
+    typeof calculateMarketScore
+  >;
 
-  multiTimeframe:
-    ReturnType<
-      typeof analyzeMultiTimeframe
-    >;
+  multiTimeframe: Awaited<
+    ReturnType<typeof analyzeMultiTimeframe>
+  >;
 
-  consensus:
-    ReturnType<
-      typeof buildConsensus
-    >;
+  consensus: ReturnType<typeof buildConsensus>;
 
-  sentiment:
-    ReturnType<
-      typeof analyzeSentiment
-    >;
+  sentiment: ReturnType<typeof analyzeSentiment>;
 
-  risk:
-    ReturnType<
-      typeof calculateRisk
-    >;
+  fundamental: FundamentalAnalysis;
 
-  learning:
-    ReturnType<
-      typeof getLearningData
-    >;
+  macro: MacroAnalysis;
+
+  risk: ReturnType<typeof calculateRisk>;
+
+  learning: ReturnType<typeof getLearningData>;
 
   decision: Decision;
 
   positions: OpenPosition[];
 
   timestamp: number;
-
 }
 
 export class AIBrain {
-
-  async think(
+  private async analyzeInternal(
     symbol: string,
-    candles: Candle[]
+    candles: Candle[],
   ): Promise<AIBrainResult> {
-
     const technical =
       calculateIndicators(
-        candles
+        candles,
       );
 
     const marketScore =
       calculateMarketScore({
-
         trend:
           technical.trend,
 
@@ -130,39 +137,68 @@ export class AIBrain {
 
         patternStrength:
           technical.trendStrength,
-
       });
 
     const multiTimeframe =
-      analyzeMultiTimeframe(
-        candles
+      await analyzeMultiTimeframe(
+        symbol,
       );
 
     const consensus =
       buildConsensus(
-        multiTimeframe
+        multiTimeframe,
       );
 
     const news =
-      await mockNewsProvider.getNews(
-        symbol
+      await newsService.getNews(
+        symbol,
       );
 
     const sentiment =
       analyzeSentiment(
-        news
+        news,
       );
+
+    const fundamentalMarketData =
+      await coinGeckoFundamentalProvider.getMarketData(
+        symbol,
+      );
+
+    const fundamental =
+      analyzeFundamental(
+        fundamentalMarketData,
+      );
+
+    const macroMarketData =
+      await worldBankMacroProvider.getMarketData();
+
+    const macro =
+      analyzeMacro(
+        macroMarketData,
+        worldBankMacroProvider.name,
+      );
+
+    const latestClose =
+      candles.at(-1)?.close ?? 0;
+
+    const volatilityPercent =
+      latestClose > 0
+        ? (
+            technical.atr /
+            latestClose
+          ) * 100
+        : 0;
 
     const risk =
       calculateRisk({
-
         volatility:
-          technical.atr,
+          volatilityPercent,
 
-        stopLossPercent: 3,
+        stopLossPercent:
+          3,
 
-        positionSizePercent: 5,
-
+        positionSizePercent:
+          5,
       });
 
     const learning =
@@ -170,23 +206,29 @@ export class AIBrain {
 
     const technicalScore =
       Math.round(
-        (
-          marketScore.technicalScore +
-          consensus.score
-        ) / 2
+        marketScore.technicalScore * 0.30 +
+        multiTimeframe.averageScore * 0.70,
+      );
+
+    const learningScore =
+      Math.min(
+        100,
+        50 +
+          learning.confidenceBonus,
       );
 
     const decision =
       makeDecision({
-
         technicalScore,
 
         newsScore:
           sentiment.score,
 
-        fundamentalScore: 50,
+        fundamentalScore:
+          fundamental.score,
 
-        macroScore: 50,
+        macroScore:
+          macro.score,
 
         sentimentScore:
           sentiment.score,
@@ -194,48 +236,19 @@ export class AIBrain {
         riskScore:
           risk.riskScore,
 
-        learningScore:
-          Math.min(
-            100,
-            50 +
-            learning.confidenceBonus
-          ),
-
+        learningScore,
       });
-
-    aiMemory.add({
-
-      id:
-        crypto.randomUUID(),
-
-      symbol,
-
-      action:
-        decision.action,
-
-      confidence:
-        decision.confidence,
-
-      reason:
-        decision.reason,
-
-      timestamp:
-        Date.now(),
-
-    });
 
     const positions =
       positionManager
         .getOpenPositions()
         .filter(
-          (
-            position
-          ) =>
-            position.symbol === symbol
+          (position) =>
+            position.symbol ===
+            symbol,
         );
 
     return {
-
       symbol,
 
       technical,
@@ -248,6 +261,10 @@ export class AIBrain {
 
       sentiment,
 
+      fundamental,
+
+      macro,
+
       risk,
 
       learning,
@@ -258,11 +275,73 @@ export class AIBrain {
 
       timestamp:
         Date.now(),
-
     };
-
   }
 
+  async analyze(
+    symbol: string,
+    candles: Candle[],
+  ): Promise<AIBrainResult> {
+    return this.analyzeInternal(
+      symbol,
+      candles,
+    );
+  }
+
+  async think(
+    symbol: string,
+    candles: Candle[],
+  ): Promise<AIBrainResult> {
+    const result =
+      await this.analyzeInternal(
+        symbol,
+        candles,
+      );
+
+    aiMemory.add({
+      id:
+        result.decision.id,
+
+      symbol:
+        result.symbol,
+
+      action:
+        result.decision.action,
+
+      confidence:
+        result.decision.confidence,
+
+      reason:
+        result.decision.reason,
+
+      timestamp:
+        Date.now(),
+
+      trend:
+        result.technical.trend,
+
+      ema20:
+        result.technical.ema20,
+
+      ema50:
+        result.technical.ema50,
+
+      rsi:
+        result.technical.rsi,
+
+      macd:
+        result.technical.macd,
+
+      atr:
+        result.technical.atr,
+
+      marketCondition:
+        result.multiTimeframe
+          .overallTrend,
+    });
+
+    return result;
+  }
 }
 
 export const aiBrain =

@@ -18,55 +18,46 @@ const MARKET_PROFILES: Record<
     drift: 0.0008,
     volatility: 0.006,
   },
-
   ETHUSDT: {
     basePrice: 3500,
     drift: 0.0006,
     volatility: 0.007,
   },
-
   BNBUSDT: {
     basePrice: 600,
     drift: 0.0005,
     volatility: 0.008,
   },
-
   SOLUSDT: {
     basePrice: 170,
     drift: 0.0007,
     volatility: 0.009,
   },
-
   XRPUSDT: {
     basePrice: 0.5,
     drift: 0.0004,
     volatility: 0.01,
   },
-
   ADAUSDT: {
     basePrice: 0.8,
     drift: 0.0003,
     volatility: 0.01,
   },
-
   DOGEUSDT: {
     basePrice: 0.15,
     drift: 0.0002,
     volatility: 0.012,
   },
-
   AVAXUSDT: {
     basePrice: 35,
     drift: 0.0005,
     volatility: 0.009,
   },
-
   LINKUSDT: {
     basePrice: 15,
     drift: 0.0005,
     volatility: 0.008,
   },
-
   SUIUSDT: {
     basePrice: 2,
     drift: 0.0007,
@@ -89,7 +80,6 @@ function getProfile(
 function deterministicWave(
   index: number
 ): number {
-
   return (
     Math.sin(index * 1.73) * 0.55 +
     Math.sin(index * 0.47) * 0.3 +
@@ -110,11 +100,20 @@ export class MockCandleProvider
 
   async getCandles(
     symbol: string,
-    _interval = "1h"
+    _interval = "1h",
+    limit = 100
   ): Promise<Candle[]> {
-
     const profile =
       getProfile(symbol);
+
+    const safeLimit =
+      Math.min(
+        Math.max(
+          Math.floor(limit),
+          1
+        ),
+        1000
+      );
 
     const now =
       Math.floor(
@@ -128,10 +127,9 @@ export class MockCandleProvider
 
     for (
       let index = 0;
-      index < 100;
+      index < safeLimit;
       index++
     ) {
-
       const wave =
         deterministicWave(
           index
@@ -140,7 +138,7 @@ export class MockCandleProvider
       const movement =
         profile.drift +
         wave *
-        profile.volatility;
+          profile.volatility;
 
       const open =
         price;
@@ -154,16 +152,15 @@ export class MockCandleProvider
           close - open
         ) +
         open *
-        profile.volatility *
-        0.35;
+          profile.volatility *
+          0.35;
 
       const high =
         Math.max(
           open,
           close
         ) +
-        range *
-        0.35;
+        range * 0.35;
 
       const low =
         Math.max(
@@ -172,35 +169,26 @@ export class MockCandleProvider
             open,
             close
           ) -
-          range *
-          0.35
+            range * 0.35
         );
 
       candles.push({
         time:
           now -
-          (99 - index) *
-          3600,
-
-        open:
-          Number(
-            open.toFixed(8)
-          ),
-
-        high:
-          Number(
-            high.toFixed(8)
-          ),
-
-        low:
-          Number(
-            low.toFixed(8)
-          ),
-
-        close:
-          Number(
-            close.toFixed(8)
-          ),
+          (safeLimit - 1 - index) *
+            3600,
+        open: Number(
+          open.toFixed(8)
+        ),
+        high: Number(
+          high.toFixed(8)
+        ),
+        low: Number(
+          low.toFixed(8)
+        ),
+        close: Number(
+          close.toFixed(8)
+        ),
       });
 
       price =

@@ -9,10 +9,13 @@ export type Candle = {
 export interface CandleProvider {
   name: string;
 
-  supports(symbol: string): boolean;
+  supports(
+    symbol: string
+  ): boolean;
 
   getCandles(
     symbol: string,
-    interval: string
+    interval: string,
+    limit?: number
   ): Promise<Candle[]>;
 }

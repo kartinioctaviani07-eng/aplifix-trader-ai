@@ -1,5 +1,6 @@
 import {
   adaptConfidence,
+  adaptConfidenceFromStats,
 } from "./adaptiveConfidence";
 
 export type DecisionInput = {
@@ -10,163 +11,103 @@ export type DecisionInput = {
   sentimentScore: number;
   riskScore: number;
   learningScore?: number;
+  confidenceWins?: number;
+  confidenceLosses?: number;
 };
 
 export type DecisionResult = {
-
+  id: string;
   action:
     | "BUY"
     | "SELL"
     | "HOLD"
     | "WAIT";
-
   confidence: number;
-
   totalScore: number;
-
   reason: string[];
-
 };
 
 export function makeDecision(
   input: DecisionInput
 ): DecisionResult {
-
   const weights = {
-
     technical: 0.40,
-
     news: 0.10,
-
     fundamental: 0.10,
-
     macro: 0.10,
-
     sentiment: 0.10,
-
     risk: 0.15,
-
     learning: 0.05,
-
   };
 
   const learningScore =
     input.learningScore ?? 50;
 
-  const totalScore =
-    Math.round(
-
-      input.technicalScore *
-        weights.technical +
-
-      input.newsScore *
-        weights.news +
-
-      input.fundamentalScore *
-        weights.fundamental +
-
-      input.macroScore *
-        weights.macro +
-
-      input.sentimentScore *
-        weights.sentiment +
-
-      input.riskScore *
-        weights.risk +
-
-      learningScore *
-        weights.learning
-
-    );
+  const totalScore = Math.round(
+    input.technicalScore *
+      weights.technical +
+    input.newsScore *
+      weights.news +
+    input.fundamentalScore *
+      weights.fundamental +
+    input.macroScore *
+      weights.macro +
+    input.sentimentScore *
+      weights.sentiment +
+    input.riskScore *
+      weights.risk +
+    learningScore *
+      weights.learning
+  );
 
   const reason: string[] = [];
 
-  if (
-    input.technicalScore >= 80
-  ) {
-
+  if (input.technicalScore >= 80) {
     reason.push(
       "Technical trend bullish kuat."
     );
-
-  }
-
-  else if (
-    input.technicalScore >= 60
-  ) {
-
+  } else if (input.technicalScore >= 60) {
     reason.push(
       "Technical trend mulai mendukung."
     );
-
-  }
-
-  else if (
-    input.technicalScore <= 30
-  ) {
-
+  } else if (input.technicalScore <= 30) {
     reason.push(
       "Technical trend masih bearish."
     );
-
-  }
-
-  else {
-
+  } else {
     reason.push(
       "Technical belum memberikan konfirmasi."
     );
-
   }
 
-  if (
-    input.newsScore >= 70
-  ) {
-
+  if (input.newsScore >= 70) {
     reason.push(
       "News sentiment positif."
     );
-
   }
 
-  if (
-    input.newsScore <= 30
-  ) {
-
+  if (input.newsScore <= 30) {
     reason.push(
       "News sentiment negatif."
     );
-
   }
 
-  if (
-    input.riskScore >= 80
-  ) {
-
+  if (input.riskScore >= 80) {
     reason.push(
       "Risk management aman."
     );
-
   }
 
-  if (
-    input.riskScore < 50
-  ) {
-
+  if (input.riskScore < 50) {
     reason.push(
       "Risiko perdagangan tinggi."
     );
-
   }
 
-  if (
-    learningScore >= 70
-  ) {
-
+  if (learningScore >= 70) {
     reason.push(
       "AI learning history mendukung keputusan."
     );
-
   }
 
   let action:
@@ -179,38 +120,27 @@ export function makeDecision(
     input.technicalScore >= 75 &&
     totalScore >= 75
   ) {
-
     action = "BUY";
-
-  }
-
-  else if (
+  } else if (
     input.technicalScore <= 30 &&
     totalScore <= 40
   ) {
-
     action = "SELL";
-
-  }
-
-  else if (
-    totalScore >= 60
-  ) {
-
+  } else if (totalScore >= 60) {
     action = "HOLD";
-
-  }
-
-  else {
-
+  } else {
     action = "WAIT";
-
   }
 
   const adaptive =
-    adaptConfidence(
-      totalScore
-    );
+    input.confidenceWins !== undefined &&
+    input.confidenceLosses !== undefined
+      ? adaptConfidenceFromStats(
+          totalScore,
+          input.confidenceWins,
+          input.confidenceLosses
+        )
+      : adaptConfidence(totalScore);
 
   reason.push(
     `Adaptive bonus: +${adaptive.bonus.toFixed(1)}`
@@ -221,16 +151,11 @@ export function makeDecision(
   );
 
   return {
-
+    id: crypto.randomUUID(),
     action,
-
     confidence:
       adaptive.adjustedConfidence,
-
     totalScore,
-
     reason,
-
   };
-
 }

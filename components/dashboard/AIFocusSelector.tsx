@@ -76,7 +76,7 @@ export default function AIFocusSelector() {
   }
 
   return (
-    <Card title="🤖 AI Focus Control">
+    <div className="min-w-0 w-full"><Card title="🤖 AI Focus Control">
       <div className="space-y-5">
 
         <div>
@@ -84,7 +84,7 @@ export default function AIFocusSelector() {
             Mode AI
           </p>
 
-          <div className="mt-2 flex gap-3">
+          <div className="mt-2 flex flex-wrap gap-3">
 
             <button
               type="button"
@@ -168,17 +168,17 @@ export default function AIFocusSelector() {
             AI Focus Saat Ini
           </p>
 
-          <p className="mt-1 text-lg font-bold text-emerald-400">
+          <p className="mt-1 break-words text-lg font-bold text-emerald-400">
             {focus?.symbol ?? "-"}
           </p>
 
         </div>
 
-        <p className="min-h-5 text-sm text-emerald-400">
+        <p className="min-h-5 break-words text-sm text-emerald-400">
           {status}
         </p>
 
       </div>
-    </Card>
+    </Card></div>
   );
 }

@@ -76,11 +76,22 @@ class AICore {
         symbol
       );
 
-    const monitor =
-      monitorPositions(
-        symbol,
-        ticker.price
+    const lastCandle =
+      candles.at(-1);
+
+    if (!lastCandle) {
+      throw new Error(
+        `Tidak ada candle terakhir untuk ${symbol}`
       );
+    }
+
+    const monitor =
+      monitorPositions({
+        symbol,
+        price: ticker.price,
+        high: lastCandle.high,
+        low: lastCandle.low,
+      });
 
     const performance =
       getPerformance();

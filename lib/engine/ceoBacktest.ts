@@ -11,7 +11,7 @@ import {
 } from "./marketScoreEngine";
 
 import {
-  analyzeMultiTimeframe,
+  analyzeHistoricalMultiTimeframe,
 } from "./multiTimeframeEngine";
 
 import {
@@ -75,7 +75,6 @@ function clampScore(
 function calculateRiskScore(
   atrPercent: number
 ): number {
-
   if (atrPercent < 1) {
     return 100;
   }
@@ -100,10 +99,11 @@ function calculateRiskScore(
 }
 
 function calculateMarketProxyScores(
-  technical: ReturnType<typeof calculateIndicators>,
+  technical: ReturnType<
+    typeof calculateIndicators
+  >,
   consensusScore: number
 ) {
-
   const trendScore =
     technical.trend === "Bullish"
       ? 100
@@ -120,7 +120,8 @@ function calculateMarketProxyScores(
           : 20;
 
   const macdScore =
-    technical.macd >= technical.signal
+    technical.macd >=
+    technical.signal
       ? 90
       : 30;
 
@@ -191,15 +192,11 @@ function calculateMarketProxyScores(
 
 export function runCEOBacktest(
   candles: Candle[],
-  initialBalance = 10_000_000
+  initialBalance = 10_000_000,
+  evaluationCandles?: number
 ): CEOBacktestResult {
-
-  let balance =
-    initialBalance;
-
-  let peakBalance =
-    initialBalance;
-
+  let balance = initialBalance;
+  let peakBalance = initialBalance;
   let maxDrawdown = 0;
 
   const trades: BacktestTrade[] = [];
@@ -225,12 +222,26 @@ export function runCEOBacktest(
       }
     | null = null;
 
+  let learningWins = 0;
+  let learningLosses = 0;
+
+  const requestedEvaluationCandles =
+    evaluationCandles !== undefined &&
+    evaluationCandles > 0
+      ? Math.floor(evaluationCandles)
+      : candles.length;
+
+  const evaluationStart = Math.max(
+    50,
+    candles.length -
+      requestedEvaluationCandles
+  );
+
   for (
     let index = 50;
     index < candles.length;
     index++
   ) {
-
     const history =
       candles.slice(
         0,
@@ -240,8 +251,11 @@ export function runCEOBacktest(
     const current =
       candles[index];
 
-    if (openTrade) {
+    if (!current) {
+      continue;
+    }
 
+    if (openTrade) {
       const hitStop =
         current.low <=
         openTrade.stopLoss;
@@ -254,7 +268,6 @@ export function runCEOBacktest(
         hitStop ||
         hitTarget
       ) {
-
         const exitPrice =
           hitStop
             ? openTrade.stopLoss
@@ -277,64 +290,79 @@ export function runCEOBacktest(
           ) *
           100;
 
-        balance +=
-          profit;
+        balance += profit;
 
-        trades.push({
-          entryPrice:
-            openTrade.entryPrice,
+        const result =
+          profit > 0
+            ? "PROFIT"
+            : profit < 0
+              ? "LOSS"
+              : "BREAK EVEN";
 
-          exitPrice,
+        if (result === "PROFIT") {
+          learningWins += 1;
+        }
 
-          profit:
-            Number(
-              profit.toFixed(2)
-            ),
+        if (result === "LOSS") {
+          learningLosses += 1;
+        }
 
-          profitPercent:
-            Number(
-              profitPercent.toFixed(2)
-            ),
+        if (
+          index >= evaluationStart
+        ) {
+          trades.push({
+            entryPrice:
+              openTrade.entryPrice,
+            exitPrice,
+            profit:
+              Number(
+                profit.toFixed(2)
+              ),
+            profitPercent:
+              Number(
+                profitPercent.toFixed(2)
+              ),
+            result,
+          });
 
-          result:
-            profit > 0
-              ? "PROFIT"
-              : profit < 0
-                ? "LOSS"
-                : "BREAK EVEN",
-        });
+          peakBalance =
+            Math.max(
+              peakBalance,
+              balance
+            );
+
+          const drawdown =
+            peakBalance > 0
+              ? (
+                  (
+                    peakBalance -
+                    balance
+                  ) /
+                  peakBalance
+                ) *
+                100
+              : 0;
+
+          maxDrawdown =
+            Math.max(
+              maxDrawdown,
+              drawdown
+            );
+        }
 
         openTrade = null;
-
-        peakBalance =
-          Math.max(
-            peakBalance,
-            balance
-          );
-
-        const drawdown =
-          peakBalance > 0
-            ? (
-                (
-                  peakBalance -
-                  balance
-                ) /
-                peakBalance
-              ) *
-              100
-            : 0;
-
-        maxDrawdown =
-          Math.max(
-            maxDrawdown,
-            drawdown
-          );
-
         continue;
       }
     }
 
     if (openTrade) {
+      continue;
+    }
+
+    if (
+      index <
+      evaluationStart
+    ) {
       continue;
     }
 
@@ -347,25 +375,20 @@ export function runCEOBacktest(
       calculateMarketScore({
         trend:
           technical.trend,
-
         rsi:
           technical.rsi,
-
         macd:
           technical.macd,
-
         signal:
           technical.signal,
-
         adx:
           technical.adx,
-
         patternStrength:
           technical.trendStrength,
       });
 
     const multiTimeframe =
-      analyzeMultiTimeframe(
+      analyzeHistoricalMultiTimeframe(
         history
       );
 
@@ -375,17 +398,15 @@ export function runCEOBacktest(
       );
 
     const technicalScore =
-      Math.round(
-        (
-          marketScore.technicalScore +
-          consensus.score
-        ) / 2
-      );
+      marketScore.technicalScore;
+
+    const consensusScore =
+      consensus.score;
 
     const proxyScores =
       calculateMarketProxyScores(
         technical,
-        consensus.score
+        consensusScore
       );
 
     const riskScore =
@@ -402,59 +423,70 @@ export function runCEOBacktest(
     const decision =
       makeDecision({
         technicalScore,
-
         newsScore:
           proxyScores.newsScore,
-
         fundamentalScore:
           proxyScores.fundamentalScore,
-
         macroScore:
           proxyScores.macroScore,
-
         sentimentScore:
           proxyScores.sentimentScore,
-
         riskScore,
-
-        learningScore:
-          50,
+        learningScore: 50,
+        confidenceWins:
+          learningWins,
+        confidenceLosses:
+          learningLosses,
       });
 
-    if (decision.action === "BUY") {
+    if (
+      decision.action ===
+      "BUY"
+    ) {
       diagnostics.buySignals += 1;
-    } else if (decision.action === "SELL") {
+    } else if (
+      decision.action ===
+      "SELL"
+    ) {
       diagnostics.sellSignals += 1;
-    } else if (decision.action === "HOLD") {
+    } else if (
+      decision.action ===
+      "HOLD"
+    ) {
       diagnostics.holdSignals += 1;
     } else {
       diagnostics.waitSignals += 1;
     }
 
-    diagnostics.highestConfidence = Math.max(
-      diagnostics.highestConfidence,
-      decision.confidence
-    );
+    diagnostics.highestConfidence =
+      Math.max(
+        diagnostics.highestConfidence,
+        decision.confidence
+      );
 
-    diagnostics.highestTechnicalScore = Math.max(
-      diagnostics.highestTechnicalScore,
-      technicalScore
-    );
+    diagnostics.highestTechnicalScore =
+      Math.max(
+        diagnostics.highestTechnicalScore,
+        technicalScore
+      );
 
-    diagnostics.highestConsensusScore = Math.max(
-      diagnostics.highestConsensusScore,
-      consensus.score
-    );
+    diagnostics.highestConsensusScore =
+      Math.max(
+        diagnostics.highestConsensusScore,
+        consensusScore
+      );
 
     if (
-      decision.action === "BUY" &&
+      decision.action ===
+        "BUY" &&
       decision.confidence < 75
     ) {
       diagnostics.buyConfidenceBelow75 += 1;
     }
 
     if (
-      decision.action !== "BUY" ||
+      decision.action !==
+        "BUY" ||
       decision.confidence < 75
     ) {
       continue;
@@ -462,12 +494,10 @@ export function runCEOBacktest(
 
     diagnostics.eligibleBuySignals += 1;
 
-    const stopLossPercent =
-      2;
+    const stopLossPercent = 2;
 
     const riskCapital =
-      balance *
-      0.01;
+      balance * 0.01;
 
     const stopDistance =
       current.close *
@@ -489,15 +519,12 @@ export function runCEOBacktest(
     openTrade = {
       entryPrice:
         current.close,
-
       stopLoss:
         current.close *
         0.98,
-
       takeProfit:
         current.close *
         1.04,
-
       quantity,
     };
   }
@@ -509,20 +536,32 @@ export function runCEOBacktest(
   const win =
     trades.filter(
       (trade) =>
-        trade.result === "PROFIT"
+        trade.result ===
+        "PROFIT"
     ).length;
 
   const loss =
     trades.filter(
       (trade) =>
-        trade.result === "LOSS"
+        trade.result ===
+        "LOSS"
     ).length;
 
   const breakEven =
     trades.filter(
       (trade) =>
-        trade.result === "BREAK EVEN"
+        trade.result ===
+        "BREAK EVEN"
     ).length;
+
+  const totalTrades =
+    trades.length;
+
+  const winRate =
+    totalTrades > 0
+      ? (win / totalTrades) *
+        100
+      : 0;
 
   const grossProfit =
     trades
@@ -558,42 +597,24 @@ export function runCEOBacktest(
         ? Infinity
         : 0;
 
-  const winRate =
-    trades.length > 0
-      ? (
-          win /
-          trades.length
-        ) *
-        100
-      : 0;
-
   return {
     initialBalance,
-
     finalBalance:
       Number(
         balance.toFixed(2)
       ),
-
     totalProfit:
       Number(
         totalProfit.toFixed(2)
       ),
-
-    totalTrades:
-      trades.length,
-
+    totalTrades,
     win,
-
     loss,
-
     breakEven,
-
     winRate:
       Number(
         winRate.toFixed(2)
       ),
-
     profitFactor:
       Number.isFinite(
         profitFactor
@@ -601,32 +622,12 @@ export function runCEOBacktest(
         ? Number(
             profitFactor.toFixed(2)
           )
-        : Infinity,
-
+        : profitFactor,
     maxDrawdown:
       Number(
         maxDrawdown.toFixed(2)
       ),
-
     trades,
-
-    diagnostics: {
-      ...diagnostics,
-
-      highestConfidence:
-        Number(
-          diagnostics.highestConfidence.toFixed(2)
-        ),
-
-      highestTechnicalScore:
-        Number(
-          diagnostics.highestTechnicalScore.toFixed(2)
-        ),
-
-      highestConsensusScore:
-        Number(
-          diagnostics.highestConsensusScore.toFixed(2)
-        ),
-    },
+    diagnostics,
   };
 }

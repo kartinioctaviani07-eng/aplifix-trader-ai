@@ -196,27 +196,27 @@ export default function CEOCard() {
   }
 
   return (
-    <section className="rounded-2xl border border-emerald-500/20 bg-slate-900/80 p-6 shadow-xl shadow-emerald-950/10">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <section className="min-w-0 w-full overflow-hidden rounded-2xl border border-emerald-500/20 bg-slate-900/80 p-6 shadow-xl shadow-emerald-950/10">
+      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg text-emerald-400">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-lg text-emerald-400">
               AI
             </span>
 
             <div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="min-w-0 text-xl font-bold text-white">
                 CEO APLIFIX
               </h2>
 
-              <p className="text-sm text-slate-400">
+              <p className="break-words text-sm text-slate-400">
                 Autonomous AI Trading Decision Engine
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <select
             value={symbol}
             onChange={(event) =>
@@ -262,7 +262,7 @@ export default function CEOCard() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-4">
+      <div className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
           <p className="text-xs uppercase tracking-wide text-slate-500">
             Balance
@@ -320,7 +320,7 @@ export default function CEOCard() {
 
       {ceo ? (
         <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-5">
-          <div className="grid gap-5 md:grid-cols-4">
+          <div className="grid min-w-0 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-500">
                 CEO Decision
@@ -376,7 +376,7 @@ export default function CEOCard() {
             </p>
 
             {ceo.position && (
-              <div className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+              <div className="mt-4 grid min-w-0 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <span className="text-slate-500">
                     Position

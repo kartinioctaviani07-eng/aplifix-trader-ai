@@ -14,10 +14,27 @@ import {
   ceoAccount,
 } from "./ceoAccount";
 
+import {
+  aiMemory,
+} from "./aiMemory";
+
+export type PositionMonitorInput = {
+  symbol: string;
+  price: number;
+  high: number;
+  low: number;
+};
+
 export function monitorPositions(
-  symbol: string,
-  price: number
+  input: PositionMonitorInput
 ) {
+  const {
+    symbol,
+    price,
+    high,
+    low,
+  } = input;
+
   positionManager.updatePrice(
     symbol,
     price
@@ -42,45 +59,32 @@ export function monitorPositions(
   }> = [];
 
   for (const position of positions) {
-
     let reason:
       | "TAKE PROFIT"
       | "STOP LOSS"
       | null = null;
 
-    if (
-      position.side === "BUY"
-    ) {
+    if (position.side === "BUY") {
       if (
-        price >=
-        position.takeProfit
+        low <= position.stopLoss
       ) {
-        reason =
-          "TAKE PROFIT";
+        reason = "STOP LOSS";
       } else if (
-        price <=
-        position.stopLoss
+        high >= position.takeProfit
       ) {
-        reason =
-          "STOP LOSS";
+        reason = "TAKE PROFIT";
       }
     }
 
-    if (
-      position.side === "SELL"
-    ) {
+    if (position.side === "SELL") {
       if (
-        price <=
-        position.takeProfit
+        high >= position.stopLoss
       ) {
-        reason =
-          "TAKE PROFIT";
+        reason = "STOP LOSS";
       } else if (
-        price >=
-        position.stopLoss
+        low <= position.takeProfit
       ) {
-        reason =
-          "STOP LOSS";
+        reason = "TAKE PROFIT";
       }
     }
 
@@ -88,67 +92,81 @@ export function monitorPositions(
       continue;
     }
 
+    const exitPrice =
+      reason === "STOP LOSS"
+        ? position.stopLoss
+        : position.takeProfit;
+
     const profit =
       calculateProfit(
         position,
-        price
+        exitPrice
       );
+
+    const closedAt =
+      Date.now();
+
+    const duration =
+      closedAt -
+      position.openedAt;
 
     ceoAccount.applyProfit(
       profit.profit
     );
 
     tradeHistory.add({
-      id:
-        position.id,
-
-      symbol:
-        position.symbol,
-
-      side:
-        position.side,
-
+      id: position.id,
+      symbol: position.symbol,
+      side: position.side,
       entryPrice:
         position.entryPrice,
-
-      exitPrice:
-        price,
-
+      exitPrice,
       quantity:
         position.quantity,
-
       profit:
         profit.profit,
-
       profitPercent:
         profit.profitPercent,
-
       result:
         profit.result,
-
       openedAt:
         position.openedAt,
-
-      closedAt:
-        Date.now(),
+      closedAt,
+      decisionId:
+        position.decisionId,
     });
+
+    if (position.decisionId) {
+      aiMemory.updateResult(
+        position.decisionId,
+        {
+          entryPrice:
+            position.entryPrice,
+          exitPrice,
+          profit:
+            profit.profit,
+          duration,
+          result:
+            profit.result,
+        }
+      );
+    }
 
     positionManager.closePosition(
       position.id
     );
 
     closed.push({
-      id:
-        position.id,
-
+      id: position.id,
       reason,
-
       profit,
     });
   }
 
   return {
     price,
+    high,
+    low,
     closed,
   };
 }

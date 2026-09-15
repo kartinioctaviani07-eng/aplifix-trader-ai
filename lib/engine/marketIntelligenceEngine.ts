@@ -1,99 +1,83 @@
-import { aiCore } from "./aiCore";
+import { candleHub } from "@/lib/core/market/candleIndex";
+import { aiBrain } from "./aiBrain";
 
 export interface MarketOpportunity {
-
   symbol: string;
-
   action: "BUY" | "SELL" | "HOLD" | "WAIT";
-
   confidence: number;
-
   score: number;
-
   trend: string;
-
   risk: string;
-
 }
 
 export interface MarketIntelligenceResult {
-
   opportunities: MarketOpportunity[];
-
   best: MarketOpportunity;
-
   generatedAt: number;
-
 }
 
 const WATCHLIST = [
-
   "BTCUSDT",
-
   "ETHUSDT",
-
   "SOLUSDT",
-
   "BNBUSDT",
-
   "XRPUSDT",
-
 ];
 
 class MarketIntelligenceEngine {
-
   async scan(): Promise<MarketIntelligenceResult> {
-
     const opportunities: MarketOpportunity[] = [];
 
     for (const symbol of WATCHLIST) {
+      const candles =
+        await candleHub.getCandles(
+          symbol,
+          "1h"
+        );
 
-      const result =
-        await aiCore.analyze(symbol);
+      const brain =
+        await aiBrain.analyze(
+          symbol,
+          candles
+        );
 
       opportunities.push({
-
         symbol,
-
         action:
-          result.brain.decision.action,
-
+          brain.decision.action,
         confidence:
-          result.brain.decision.confidence,
-
+          brain.decision.confidence,
         score:
-          result.brain.marketScore.technicalScore,
-
+          brain.marketScore.technicalScore,
         trend:
-          result.brain.technical.trend,
-
+          brain.technical.trend,
         risk:
-          result.brain.risk.level,
-
+          brain.risk.level,
       });
-
     }
 
     opportunities.sort(
-
       (a, b) =>
-
-        b.confidence - a.confidence
-
+        b.confidence -
+        a.confidence
     );
 
+    const best =
+      opportunities[0];
+
+    if (!best) {
+      throw new Error(
+        "Tidak ada market opportunity yang tersedia."
+      );
+    }
+
     return {
-
       opportunities,
-
-      best: opportunities[0],
-
-      generatedAt: Date.now(),
-
+      best,
+      generatedAt:
+        Date.now(),
     };
-
   }
-
 }
 
 export const marketIntelligenceEngine =

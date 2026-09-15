@@ -44,10 +44,12 @@ export async function POST(
 
 
   const result =
-    monitorPositions(
+    monitorPositions({
       symbol,
-      price
-    );
+      price,
+      high: price,
+      low: price,
+    });
 
 
 
