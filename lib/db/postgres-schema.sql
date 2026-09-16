@@ -257,3 +257,30 @@ CREATE INDEX IF NOT EXISTS idx_ai_activity_logs_created
 
 CREATE INDEX IF NOT EXISTS idx_ai_activity_logs_action
   ON ai_activity_logs(action);
+
+CREATE TABLE IF NOT EXISTS auto_pilot (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  status TEXT NOT NULL DEFAULT 'STOPPED'
+    CHECK (status IN ('ACTIVE', 'STOPPED')),
+  symbol TEXT NOT NULL DEFAULT 'BTCUSDT',
+  started_at BIGINT,
+  stopped_at BIGINT,
+  last_run_at BIGINT,
+  last_result TEXT,
+  last_error TEXT,
+  updated_at BIGINT NOT NULL
+);
+
+INSERT INTO auto_pilot (
+  id,
+  status,
+  symbol,
+  updated_at
+)
+VALUES (
+  1,
+  'STOPPED',
+  'BTCUSDT',
+  EXTRACT(EPOCH FROM NOW())::BIGINT * 1000
+)
+ON CONFLICT (id) DO NOTHING;
