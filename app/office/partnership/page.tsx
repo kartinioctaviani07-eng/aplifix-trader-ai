@@ -29,8 +29,8 @@ type PartnershipInterest = {
   interest: string;
   message: string;
   status: string;
-  created_at: number;
-  updated_at: number;
+  created_at: number | string;
+  updated_at: number | string;
 };
 
 type PartnershipResponse = {
@@ -47,11 +47,28 @@ type StatusUpdateResponse = {
   message?: string;
 };
 
-function formatDate(timestamp: number): string {
+function formatDate(
+  timestamp: number | string,
+): string {
+  const numericTimestamp =
+    typeof timestamp === "string"
+      ? Number(timestamp)
+      : timestamp;
+
+  if (!Number.isFinite(numericTimestamp)) {
+    return "Tanggal tidak tersedia";
+  }
+
+  const date = new Date(numericTimestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Tanggal tidak tersedia";
+  }
+
   return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(timestamp));
+  }).format(date);
 }
 
 function isPartnershipStatus(
@@ -108,11 +125,8 @@ export default function PartnershipDeskPage() {
   const [items, setItems] = useState<
     PartnershipInterest[]
   >([]);
-
   const [loading, setLoading] = useState(true);
-
   const [status, setStatus] = useState("");
-
   const [updatingId, setUpdatingId] =
     useState<string | null>(null);
 
@@ -267,11 +281,9 @@ export default function PartnershipDeskPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-400">
             PARTNERSHIP DESK
           </p>
-
           <h1 className="mt-3 text-4xl font-bold tracking-tight">
             Minat Kerja Sama
           </h1>
-
           <p className="mt-3 max-w-3xl text-slate-400">
             Kelola pipeline kerja sama APLIFIX dari
             satu tempat. Setiap perubahan status
@@ -284,37 +296,30 @@ export default function PartnershipDeskPage() {
             label="New"
             value={counts.new}
           />
-
           <StatCard
             label="Reviewing"
             value={counts.reviewing}
           />
-
           <StatCard
             label="Contacted"
             value={counts.contacted}
           />
-
           <StatCard
             label="Qualified"
             value={counts.qualified}
           />
-
           <StatCard
             label="Proposal Sent"
             value={counts.proposalSent}
           />
-
           <StatCard
             label="Agreement"
             value={counts.agreement}
           />
-
           <StatCard
             label="Completed"
             value={counts.completed}
           />
-
           <StatCard
             label="Total"
             value={items.length}
@@ -344,25 +349,20 @@ export default function PartnershipDeskPage() {
                     <th className="px-5 py-4">
                       Nama
                     </th>
-
                     <th className="px-5 py-4">
                       Kontak
                     </th>
-
                     <th className="px-5 py-4">
                       Interest
                     </th>
-
                     <th className="px-5 py-4">
                       Pipeline
                     </th>
-
                     <th className="px-5 py-4">
                       Masuk
                     </th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {items.map((item) => {
                     const validStatus =
@@ -371,7 +371,6 @@ export default function PartnershipDeskPage() {
                       )
                         ? item.status
                         : "NEW";
-
                     const updating =
                       updatingId === item.id;
 
@@ -384,28 +383,23 @@ export default function PartnershipDeskPage() {
                           <p className="font-semibold">
                             {item.name}
                           </p>
-
                           {item.message ? (
                             <p className="mt-1 max-w-sm text-slate-500">
                               {item.message}
                             </p>
                           ) : null}
                         </td>
-
                         <td className="px-5 py-5 align-top text-slate-400">
                           <p>{item.email}</p>
-
                           {item.phone ? (
                             <p className="mt-1">
                               {item.phone}
                             </p>
                           ) : null}
                         </td>
-
                         <td className="px-5 py-5 align-top text-slate-300">
                           {item.interest}
                         </td>
-
                         <td className="px-5 py-5 align-top">
                           <div className="flex items-center gap-3">
                             <span
@@ -424,7 +418,6 @@ export default function PartnershipDeskPage() {
                               onChange={(event) => {
                                 const nextStatus =
                                   event.target.value;
-
                                 if (
                                   isPartnershipStatus(
                                     nextStatus,
@@ -459,7 +452,6 @@ export default function PartnershipDeskPage() {
                             ) : null}
                           </div>
                         </td>
-
                         <td className="whitespace-nowrap px-5 py-5 align-top text-slate-500">
                           {formatDate(
                             item.created_at,
@@ -490,7 +482,6 @@ function StatCard({
       <p className="text-sm text-slate-500">
         {label}
       </p>
-
       <p className="mt-2 text-3xl font-bold">
         {value}
       </p>
