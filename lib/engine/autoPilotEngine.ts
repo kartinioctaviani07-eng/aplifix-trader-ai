@@ -15,6 +15,7 @@ export type AutoPilotState = {
   lastResult: string | null;
   lastError: string | null;
   updatedAt: number;
+  leaseUntil: number | null;
 };
 
 type AutoPilotRow = {
@@ -27,7 +28,10 @@ type AutoPilotRow = {
   last_result: string | null;
   last_error: string | null;
   updated_at: number;
+  lease_until: number | null;
 };
+
+const LEASE_DURATION_MS = 5 * 60 * 1000;
 
 function mapRow(
   row: AutoPilotRow
@@ -42,6 +46,7 @@ function mapRow(
     lastResult: row.last_result,
     lastError: row.last_error,
     updatedAt: row.updated_at,
+    leaseUntil: row.lease_until,
   };
 }
 
@@ -57,7 +62,8 @@ class AutoPilotEngine {
         last_run_at,
         last_result,
         last_error,
-        updated_at
+        updated_at,
+        lease_until
       FROM auto_pilot
       WHERE id = 1
       LIMIT 1
@@ -95,7 +101,8 @@ class AutoPilotEngine {
         last_run_at,
         last_result,
         last_error,
-        updated_at
+        updated_at,
+        lease_until
       FROM auto_pilot
       WHERE id = 1
       LIMIT 1
@@ -137,6 +144,7 @@ class AutoPilotEngine {
         started_at = ${now},
         stopped_at = NULL,
         last_error = NULL,
+        lease_until = NULL,
         updated_at = ${now}
       WHERE id = 1
       RETURNING
@@ -148,7 +156,8 @@ class AutoPilotEngine {
         last_run_at,
         last_result,
         last_error,
-        updated_at
+        updated_at,
+        lease_until
     `) as unknown as AutoPilotRow[];
 
     if (rows.length === 0) {
@@ -168,6 +177,7 @@ class AutoPilotEngine {
       SET
         status = 'STOPPED',
         stopped_at = ${now},
+        lease_until = NULL,
         updated_at = ${now}
       WHERE id = 1
       RETURNING
@@ -179,7 +189,8 @@ class AutoPilotEngine {
         last_run_at,
         last_result,
         last_error,
-        updated_at
+        updated_at,
+        lease_until
     `) as unknown as AutoPilotRow[];
 
     if (rows.length === 0) {
@@ -189,6 +200,52 @@ class AutoPilotEngine {
     }
 
     return mapRow(rows[0]);
+  }
+
+  private async acquireLease(): Promise<{
+    acquired: boolean;
+    leaseUntil: number;
+  }> {
+    const now = Date.now();
+    const leaseUntil =
+      now + LEASE_DURATION_MS;
+
+    const rows = (await sql`
+      UPDATE auto_pilot
+      SET
+        lease_until = ${leaseUntil},
+        updated_at = ${now}
+      WHERE id = 1
+        AND status = 'ACTIVE'
+        AND (
+          lease_until IS NULL
+          OR lease_until < ${now}
+        )
+      RETURNING
+        id
+    `) as unknown as Array<{
+      id: number;
+    }>;
+
+    return {
+      acquired: rows.length > 0,
+      leaseUntil,
+    };
+  }
+
+  private async releaseLease(
+    leaseUntil: number
+  ): Promise<void> {
+    const now = Date.now();
+
+    await sql`
+      UPDATE auto_pilot
+      SET
+        lease_until = NULL,
+        updated_at = ${now}
+      WHERE id = 1
+        AND lease_until = ${leaseUntil}
+    `;
   }
 
   async runCycle(): Promise<{
@@ -205,6 +262,20 @@ class AutoPilotEngine {
         state,
         message:
           "Auto Pilot STOPPED. Tidak ada trading yang dijalankan.",
+      };
+    }
+
+    const lease = await this.acquireLease();
+
+    if (!lease.acquired) {
+      const currentState =
+        await this.getState();
+
+      return {
+        executed: false,
+        state: currentState,
+        message:
+          "Auto Pilot cycle dilewati karena lease sedang digunakan proses lain.",
       };
     }
 
@@ -230,6 +301,7 @@ class AutoPilotEngine {
           last_error = NULL,
           updated_at = ${updatedAt}
         WHERE id = 1
+          AND lease_until = ${lease.leaseUntil}
       `;
 
       const updatedState =
@@ -256,6 +328,7 @@ class AutoPilotEngine {
           last_error = ${message},
           updated_at = ${updatedAt}
         WHERE id = 1
+          AND lease_until = ${lease.leaseUntil}
       `;
 
       const updatedState =
@@ -266,6 +339,10 @@ class AutoPilotEngine {
         state: updatedState,
         message,
       };
+    } finally {
+      await this.releaseLease(
+        lease.leaseUntil
+      );
     }
   }
 }
