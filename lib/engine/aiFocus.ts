@@ -1,6 +1,6 @@
 import {
   marketHub,
-} from "@/lib/core/market/MarketHub";
+} from "@/lib/core/market";
 
 import {
   marketIntelligenceEngine,

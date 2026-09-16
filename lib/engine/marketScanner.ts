@@ -1,6 +1,6 @@
 import { aiBrain } from "@/lib/engine/aiBrain";
 import { candleHub } from "@/lib/core/market/candleIndex";
-import { marketHub } from "@/lib/core/market/MarketHub";
+import { marketHub } from "@/lib/core/market";
 
 export interface MarketScanResult {
   symbol: string;
