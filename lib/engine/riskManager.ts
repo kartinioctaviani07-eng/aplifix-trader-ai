@@ -1,5 +1,7 @@
 import { Candle } from "@/lib/core/market/CandleProvider";
+
 import { ceoAccount } from "./ceoAccount";
+
 import { positionManager } from "./PositionManager";
 
 export type RiskManagerInput = {
@@ -101,17 +103,17 @@ function calculateRiskReward(
   );
 }
 
-export function evaluateRisk(
+export async function evaluateRisk(
   input: RiskManagerInput
-): RiskManagerResult {
+): Promise<RiskManagerResult> {
   const reasons: string[] = [];
   const rejections: string[] = [];
 
   const balance =
-    ceoAccount.getBalance();
+    await ceoAccount.getBalance();
 
   const equity =
-    ceoAccount.getEquity();
+    await ceoAccount.getEquity();
 
   if (
     balance <= 0 ||
@@ -122,11 +124,12 @@ export function evaluateRisk(
     );
   }
 
-  if (
-    positionManager.hasOpenPosition(
+  const hasOpenPosition =
+    await positionManager.hasOpenPosition(
       input.symbol
-    )
-  ) {
+    );
+
+  if (hasOpenPosition) {
     rejections.push(
       `Posisi ${input.symbol} sudah terbuka.`
     );

@@ -1,11 +1,17 @@
 import { marketHub } from "@/lib/core/market";
+
 import { candleHub } from "@/lib/core/market/candleIndex";
 
 import { aiBrain } from "./aiBrain";
+
 import { runAutoController } from "./autoController";
+
 import { monitorPositions } from "./positionMonitor";
+
 import { getPerformance } from "./performanceEngine";
+
 import { getLearningData } from "./learningEngine";
+
 import { aiMemory } from "./aiMemory";
 
 export interface AIResult {
@@ -28,20 +34,20 @@ export interface AIResult {
     ReturnType<typeof runAutoController>
   >;
 
-  monitor: ReturnType<
-    typeof monitorPositions
+  monitor: Awaited<
+    ReturnType<typeof monitorPositions>
   >;
 
   performance: ReturnType<
     typeof getPerformance
   >;
 
-  learning: ReturnType<
-    typeof getLearningData
+  learning: Awaited<
+    ReturnType<typeof getLearningData>
   >;
 
-  memory: ReturnType<
-    typeof aiMemory.getBySymbol
+  memory: Awaited<
+    ReturnType<typeof aiMemory.getBySymbol>
   >;
 
   timestamp: number;
@@ -80,13 +86,15 @@ class AICore {
       candles.at(-1);
 
     if (!lastCandle) {
+
       throw new Error(
         `Tidak ada candle terakhir untuk ${symbol}`
       );
+
     }
 
     const monitor =
-      monitorPositions({
+      await monitorPositions({
         symbol,
         price: ticker.price,
         high: lastCandle.high,
@@ -97,10 +105,10 @@ class AICore {
       getPerformance();
 
     const learning =
-      getLearningData();
+      await getLearningData();
 
     const memory =
-      aiMemory.getBySymbol(
+      await aiMemory.getBySymbol(
         symbol
       );
 

@@ -1,4 +1,4 @@
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 
 export type TradeResult =
   | "PROFIT"
@@ -40,7 +40,7 @@ type AIDecisionRow = {
     | "HOLD"
     | "WAIT";
   confidence: number;
-  reasons: string;
+  reasons: string | string[];
   trend: string | null;
   ema20: number | null;
   ema50: number | null;
@@ -56,138 +56,150 @@ type AIDecisionRow = {
   timestamp: number;
 };
 
-function mapRowToRecord(
-  row: AIDecisionRow
-): MemoryRecord {
-  let reason: string[] = [];
+function parseReasons(
+  reasons: string | string[],
+): string[] {
+  if (Array.isArray(reasons)) {
+    return reasons.filter(
+      (item): item is string =>
+        typeof item === "string",
+    );
+  }
 
   try {
     const parsed =
-      JSON.parse(row.reasons) as unknown;
+      JSON.parse(reasons) as unknown;
 
     if (Array.isArray(parsed)) {
-      reason = parsed.filter(
+      return parsed.filter(
         (item): item is string =>
-          typeof item === "string"
+          typeof item === "string",
       );
     }
   } catch {
-    reason = [row.reasons];
+    return [reasons];
   }
 
+  return [reasons];
+}
+
+function mapRowToRecord(
+  row: AIDecisionRow,
+): MemoryRecord {
   return {
     id: row.id,
     symbol: row.symbol,
     action: row.action,
-    confidence: row.confidence,
-    reason,
-    timestamp: row.timestamp,
-    trend: row.trend ?? undefined,
-    ema20: row.ema20 ?? undefined,
-    ema50: row.ema50 ?? undefined,
-    rsi: row.rsi ?? undefined,
-    macd: row.macd ?? undefined,
-    atr: row.atr ?? undefined,
+    confidence: Number(row.confidence),
+    reason: parseReasons(row.reasons),
+    timestamp: Number(row.timestamp),
+    trend:
+      row.trend ?? undefined,
+    ema20:
+      row.ema20 !== null
+        ? Number(row.ema20)
+        : undefined,
+    ema50:
+      row.ema50 !== null
+        ? Number(row.ema50)
+        : undefined,
+    rsi:
+      row.rsi !== null
+        ? Number(row.rsi)
+        : undefined,
+    macd:
+      row.macd !== null
+        ? Number(row.macd)
+        : undefined,
+    atr:
+      row.atr !== null
+        ? Number(row.atr)
+        : undefined,
     marketCondition:
-      row.market_condition ?? undefined,
+      row.market_condition ??
+      undefined,
     entryPrice:
-      row.entry_price ?? undefined,
+      row.entry_price !== null
+        ? Number(row.entry_price)
+        : undefined,
     exitPrice:
-      row.exit_price ?? undefined,
+      row.exit_price !== null
+        ? Number(row.exit_price)
+        : undefined,
     profit:
-      row.profit ?? undefined,
+      row.profit !== null
+        ? Number(row.profit)
+        : undefined,
     duration:
-      row.duration ?? undefined,
+      row.duration !== null
+        ? Number(row.duration)
+        : undefined,
     result:
       row.result ?? undefined,
   };
 }
 
 class AIMemory {
-  add(
-    record: MemoryRecord
-  ): void {
-    db.prepare(
-      `
-        INSERT INTO ai_decisions (
-          id,
-          symbol,
-          action,
-          confidence,
-          reasons,
-          trend,
-          ema20,
-          ema50,
-          rsi,
-          macd,
-          atr,
-          market_condition,
-          entry_price,
-          exit_price,
-          profit,
-          duration,
-          result,
-          timestamp
-        )
-        VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?
-        )
-      `
-    ).run(
-      record.id,
-      record.symbol,
-      record.action,
-      record.confidence,
-      JSON.stringify(record.reason),
-      record.trend ?? null,
-      record.ema20 ?? null,
-      record.ema50 ?? null,
-      record.rsi ?? null,
-      record.macd ?? null,
-      record.atr ?? null,
-      record.marketCondition ?? null,
-      record.entryPrice ?? null,
-      record.exitPrice ?? null,
-      record.profit ?? null,
-      record.duration ?? null,
-      record.result ?? null,
-      record.timestamp
-    );
+  async add(
+    record: MemoryRecord,
+  ): Promise<void> {
+    await sql`
+      INSERT INTO ai_decisions (
+        id,
+        symbol,
+        action,
+        confidence,
+        reasons,
+        trend,
+        ema20,
+        ema50,
+        rsi,
+        macd,
+        atr,
+        market_condition,
+        entry_price,
+        exit_price,
+        profit,
+        duration,
+        result,
+        timestamp
+      )
+      VALUES (
+        ${record.id},
+        ${record.symbol},
+        ${record.action},
+        ${record.confidence},
+        ${JSON.stringify(record.reason)},
+        ${record.trend ?? null},
+        ${record.ema20 ?? null},
+        ${record.ema50 ?? null},
+        ${record.rsi ?? null},
+        ${record.macd ?? null},
+        ${record.atr ?? null},
+        ${record.marketCondition ?? null},
+        ${record.entryPrice ?? null},
+        ${record.exitPrice ?? null},
+        ${record.profit ?? null},
+        ${record.duration ?? null},
+        ${record.result ?? null},
+        ${record.timestamp}
+      )
+    `;
   }
 
-  updateResult(
+  async updateResult(
     id: string,
-    data: Partial<MemoryRecord>
-  ): void {
+    data: Partial<MemoryRecord>,
+  ): Promise<void> {
+    const rows = await sql`
+      SELECT *
+      FROM ai_decisions
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+
     const existing =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM ai_decisions
-            WHERE id = ?
-          `
-        )
-        .get(id) as
-        | AIDecisionRow
-        | undefined;
+      rows[0] as AIDecisionRow | undefined;
 
     if (!existing) {
       return;
@@ -201,160 +213,126 @@ class AIMemory {
       ...data,
     };
 
-    db.prepare(
-      `
-        UPDATE ai_decisions
-        SET
-          symbol = ?,
-          action = ?,
-          confidence = ?,
-          reasons = ?,
-          trend = ?,
-          ema20 = ?,
-          ema50 = ?,
-          rsi = ?,
-          macd = ?,
-          atr = ?,
-          market_condition = ?,
-          entry_price = ?,
-          exit_price = ?,
-          profit = ?,
-          duration = ?,
-          result = ?,
-          timestamp = ?
-        WHERE id = ?
-      `
-    ).run(
-      updated.symbol,
-      updated.action,
-      updated.confidence,
-      JSON.stringify(updated.reason),
-      updated.trend ?? null,
-      updated.ema20 ?? null,
-      updated.ema50 ?? null,
-      updated.rsi ?? null,
-      updated.macd ?? null,
-      updated.atr ?? null,
-      updated.marketCondition ?? null,
-      updated.entryPrice ?? null,
-      updated.exitPrice ?? null,
-      updated.profit ?? null,
-      updated.duration ?? null,
-      updated.result ?? null,
-      updated.timestamp,
-      updated.id
-    );
+    await sql`
+      UPDATE ai_decisions
+      SET
+        symbol = ${updated.symbol},
+        action = ${updated.action},
+        confidence = ${updated.confidence},
+        reasons = ${JSON.stringify(updated.reason)},
+        trend = ${updated.trend ?? null},
+        ema20 = ${updated.ema20 ?? null},
+        ema50 = ${updated.ema50 ?? null},
+        rsi = ${updated.rsi ?? null},
+        macd = ${updated.macd ?? null},
+        atr = ${updated.atr ?? null},
+        market_condition =
+          ${updated.marketCondition ?? null},
+        entry_price =
+          ${updated.entryPrice ?? null},
+        exit_price =
+          ${updated.exitPrice ?? null},
+        profit =
+          ${updated.profit ?? null},
+        duration =
+          ${updated.duration ?? null},
+        result =
+          ${updated.result ?? null},
+        timestamp = ${updated.timestamp}
+      WHERE id = ${id}
+    `;
   }
 
-  getAll(): MemoryRecord[] {
-    const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM ai_decisions
-            ORDER BY timestamp ASC
-          `
-        )
-        .all() as AIDecisionRow[];
+  async getAll(): Promise<MemoryRecord[]> {
+    const rows = await sql`
+      SELECT *
+      FROM ai_decisions
+      ORDER BY timestamp ASC
+    `;
 
-    return rows.map(
-      mapRowToRecord
-    );
+    return (
+      rows as AIDecisionRow[]
+    ).map(mapRowToRecord);
   }
 
-  getLatest(): MemoryRecord | undefined {
+  async getLatest(): Promise<
+    MemoryRecord | undefined
+  > {
+    const rows = await sql`
+      SELECT *
+      FROM ai_decisions
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `;
+
     const row =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM ai_decisions
-            ORDER BY timestamp DESC
-            LIMIT 1
-          `
-        )
-        .get() as
-        | AIDecisionRow
-        | undefined;
+      rows[0] as AIDecisionRow | undefined;
 
     return row
       ? mapRowToRecord(row)
       : undefined;
   }
 
-  getBySymbol(
-    symbol: string
-  ): MemoryRecord[] {
-    const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM ai_decisions
-            WHERE symbol = ?
-            ORDER BY timestamp ASC
-          `
-        )
-        .all(symbol) as AIDecisionRow[];
+  async getBySymbol(
+    symbol: string,
+  ): Promise<MemoryRecord[]> {
+    const rows = await sql`
+      SELECT *
+      FROM ai_decisions
+      WHERE symbol = ${symbol}
+      ORDER BY timestamp ASC
+    `;
 
-    return rows.map(
-      mapRowToRecord
-    );
+    return (
+      rows as AIDecisionRow[]
+    ).map(mapRowToRecord);
   }
 
-  getProfitHistory(): MemoryRecord[] {
-    const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM ai_decisions
-            WHERE result = 'PROFIT'
-            ORDER BY timestamp ASC
-          `
-        )
-        .all() as AIDecisionRow[];
+  async getProfitHistory(): Promise<
+    MemoryRecord[]
+  > {
+    const rows = await sql`
+      SELECT *
+      FROM ai_decisions
+      WHERE result = 'PROFIT'
+      ORDER BY timestamp ASC
+    `;
 
-    return rows.map(
-      mapRowToRecord
-    );
+    return (
+      rows as AIDecisionRow[]
+    ).map(mapRowToRecord);
   }
 
-  getLossHistory(): MemoryRecord[] {
-    const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM ai_decisions
-            WHERE result = 'LOSS'
-            ORDER BY timestamp ASC
-          `
-        )
-        .all() as AIDecisionRow[];
+  async getLossHistory(): Promise<
+    MemoryRecord[]
+  > {
+    const rows = await sql`
+      SELECT *
+      FROM ai_decisions
+      WHERE result = 'LOSS'
+      ORDER BY timestamp ASC
+    `;
 
-    return rows.map(
-      mapRowToRecord
-    );
+    return (
+      rows as AIDecisionRow[]
+    ).map(mapRowToRecord);
   }
 
-  getAverageConfidence(): number {
-    const row =
-      db
-        .prepare(
-          `
-            SELECT AVG(confidence) AS average_confidence
-            FROM ai_decisions
-          `
-        )
-        .get() as
-        | {
-            average_confidence:
-              | number
-              | null;
-          }
-        | undefined;
+  async getAverageConfidence(): Promise<number> {
+    const rows = await sql`
+      SELECT
+        AVG(confidence) AS average_confidence
+      FROM ai_decisions
+    `;
+
+    const row = rows[0] as
+      | {
+          average_confidence:
+            | number
+            | string
+            | null;
+        }
+      | undefined;
 
     if (
       !row ||
@@ -364,16 +342,16 @@ class AIMemory {
     }
 
     return Number(
-      row.average_confidence.toFixed(2)
+      Number(
+        row.average_confidence,
+      ).toFixed(2),
     );
   }
 
-  clear(): void {
-    db.prepare(
-      `
-        DELETE FROM ai_decisions
-      `
-    ).run();
+  async clear(): Promise<void> {
+    await sql`
+      DELETE FROM ai_decisions
+    `;
   }
 }
 

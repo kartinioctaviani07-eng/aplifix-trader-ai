@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import {
   createMemberSession,
 } from "@/lib/member/session";
+
 import {
   verifyPassword,
 } from "@/lib/member/password";
@@ -67,24 +69,23 @@ export async function POST(
       );
     }
 
-    const member = db
-      .prepare(
-        `
-          SELECT
-            id,
-            name,
-            email,
-            password_hash,
-            role,
-            status
-          FROM member_accounts
-          WHERE email = ?
-          LIMIT 1
-        `,
-      )
-      .get(email) as
-      | MemberRow
-      | undefined;
+    const memberRows = await sql`
+      SELECT
+        id,
+        name,
+        email,
+        password_hash,
+        role,
+        status
+      FROM member_accounts
+      WHERE email = ${email}
+      LIMIT 1
+    `;
+
+    const member =
+      memberRows[0] as
+        | MemberRow
+        | undefined;
 
     if (!member) {
       return NextResponse.json(

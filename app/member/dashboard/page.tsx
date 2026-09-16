@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 import { getMemberSession } from "@/lib/member/session";
 
 type MemberRow = {
@@ -47,21 +47,19 @@ export default async function MemberDashboardPage() {
     redirect("/member/login");
   }
 
-  const member = db
-    .prepare(
-      `
-        SELECT
-          id,
-          name,
-          email,
-          role,
-          status
-        FROM member_accounts
-        WHERE id = ?
-        LIMIT 1
-      `,
-    )
-    .get(session.memberId) as
+  const memberRows = await sql`
+    SELECT
+      id,
+      name,
+      email,
+      role,
+      status
+    FROM member_accounts
+    WHERE id = ${session.memberId}
+    LIMIT 1
+  `;
+
+  const member = memberRows[0] as
     | MemberRow
     | undefined;
 
@@ -73,21 +71,19 @@ export default async function MemberDashboardPage() {
     redirect("/member/login");
   }
 
-  const demoAccount = db
-    .prepare(
-      `
-        SELECT
-          id,
-          initial_balance,
-          balance,
-          created_at,
-          updated_at
-        FROM demo_accounts
-        WHERE member_id = ?
-        LIMIT 1
-      `,
-    )
-    .get(member.id) as
+  const demoAccountRows = await sql`
+    SELECT
+      id,
+      initial_balance,
+      balance,
+      created_at,
+      updated_at
+    FROM demo_accounts
+    WHERE member_id = ${member.id}
+    LIMIT 1
+  `;
+
+  const demoAccount = demoAccountRows[0] as
     | DemoAccountRow
     | undefined;
 
@@ -154,7 +150,7 @@ export default async function MemberDashboardPage() {
 
             <p className="mt-3 text-3xl font-bold text-white">
               {formatRupiah(
-                demoAccount.balance,
+                Number(demoAccount.balance),
               )}
             </p>
 
@@ -170,7 +166,9 @@ export default async function MemberDashboardPage() {
 
             <p className="mt-3 text-3xl font-bold text-white">
               {formatRupiah(
-                demoAccount.initial_balance,
+                Number(
+                  demoAccount.initial_balance,
+                ),
               )}
             </p>
 
@@ -189,8 +187,9 @@ export default async function MemberDashboardPage() {
             </p>
 
             <p className="mt-2 text-xs text-slate-600">
-              Dibuat {formatDate(
-                demoAccount.created_at,
+              Dibuat{" "}
+              {formatDate(
+                Number(demoAccount.created_at),
               )}
             </p>
           </div>
@@ -264,7 +263,9 @@ export default async function MemberDashboardPage() {
 
                 <span className="text-right text-xs text-slate-500">
                   {formatDate(
-                    demoAccount.updated_at,
+                    Number(
+                      demoAccount.updated_at,
+                    ),
                   )}
                 </span>
               </div>

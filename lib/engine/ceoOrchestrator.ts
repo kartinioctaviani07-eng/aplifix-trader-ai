@@ -36,7 +36,6 @@ export type CEOResult = {
   confidence: number;
   price: number;
   riskLevel: string;
-
   macro: {
     score: number;
     inflation: number | null;
@@ -44,18 +43,18 @@ export type CEOResult = {
     gdpGrowth: number | null;
     provider: string;
   };
-
-  position: ReturnType<
-    typeof positionManager.getPosition
+  position: Awaited<
+    ReturnType<
+      typeof positionManager.getPosition
+    >
   >;
-
   executed: boolean;
   message: string;
-
-  account: ReturnType<
-    typeof ceoAccount.getSnapshot
+  account: Awaited<
+    ReturnType<
+      typeof ceoAccount.getSnapshot
+    >
   >;
-
   timestamp: number;
 };
 
@@ -81,7 +80,7 @@ export async function runCEO(
     lastCandle.close;
 
   const monitor =
-    monitorPositions({
+    await monitorPositions({
       symbol,
       price,
       high: lastCandle.high,
@@ -105,14 +104,12 @@ export async function runCEO(
     JSON.stringify(
       {
         symbol,
-
         marketScore: {
           technicalScore:
             brain.marketScore.technicalScore,
           reasons:
             brain.marketScore.reasons,
         },
-
         multiTimeframe: {
           overallTrend:
             brain.multiTimeframe.overallTrend,
@@ -123,7 +120,6 @@ export async function runCEO(
           analyses:
             brain.multiTimeframe.analyses,
         },
-
         consensus: {
           action:
             brain.consensus.action,
@@ -138,7 +134,6 @@ export async function runCEO(
           reason:
             brain.consensus.reason,
         },
-
         macro: {
           score:
             brain.macro.score,
@@ -153,7 +148,6 @@ export async function runCEO(
           reasons:
             brain.macro.reasons,
         },
-
         decision: {
           action:
             brain.decision.action,
@@ -165,7 +159,6 @@ export async function runCEO(
           reason:
             brain.decision.reason,
         },
-
         risk: {
           level:
             brain.risk.level,
@@ -187,23 +180,19 @@ export async function runCEO(
     brain.decision.confidence;
 
   const existing =
-    positionManager.getPosition(
+    await positionManager.getPosition(
       symbol
     );
 
   const macro = {
     score:
       brain.macro.score,
-
     inflation:
       brain.macro.inflation,
-
     unemployment:
       brain.macro.unemployment,
-
     gdpGrowth:
       brain.macro.gdpGrowth,
-
     provider:
       brain.macro.provider,
   };
@@ -226,7 +215,7 @@ export async function runCEO(
           ? `Posisi ditutup: ${monitor.closed[0].reason}`
           : "Posisi masih terbuka.",
       account:
-        ceoAccount.getSnapshot(),
+        await ceoAccount.getSnapshot(),
       timestamp:
         Date.now(),
     };
@@ -258,7 +247,7 @@ export async function runCEO(
         message:
           "CEO membuka posisi BUY.",
         account:
-          ceoAccount.getSnapshot(),
+          await ceoAccount.getSnapshot(),
         timestamp:
           Date.now(),
       };
@@ -277,7 +266,7 @@ export async function runCEO(
       message:
         "Sinyal BUY ada, tetapi posisi tidak dapat dibuka.",
       account:
-        ceoAccount.getSnapshot(),
+        await ceoAccount.getSnapshot(),
       timestamp:
         Date.now(),
     };
@@ -298,7 +287,7 @@ export async function runCEO(
         ? "BUY ditahan karena confidence atau risk belum memenuhi syarat."
         : `CEO memilih ${action}.`,
     account:
-      ceoAccount.getSnapshot(),
+      await ceoAccount.getSnapshot(),
     timestamp:
       Date.now(),
   };

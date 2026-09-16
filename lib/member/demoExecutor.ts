@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 
 export type DemoExecutorSide =
   | "BUY"
@@ -30,10 +30,16 @@ export interface DemoExecutorResult {
   timestamp: number;
 }
 
+interface DemoAccountRow {
+  id: string;
+  member_id: string;
+  balance: number;
+}
+
 class DemoExecutor {
-  execute(
+  async execute(
     input: DemoExecutorInput,
-  ): DemoExecutorResult {
+  ): Promise<DemoExecutorResult> {
     const memberId =
       input.memberId.trim();
 
@@ -79,57 +85,6 @@ class DemoExecutor {
       );
     }
 
-    const account =
-      db.prepare(`
-        SELECT
-          id,
-          member_id,
-          balance
-        FROM demo_accounts
-        WHERE id = ?
-          AND member_id = ?
-      `).get(
-        demoAccountId,
-        memberId,
-      ) as
-        | {
-            id: string;
-            member_id: string;
-            balance: number;
-          }
-        | undefined;
-
-    if (!account) {
-      throw new Error(
-        "Demo Account tidak ditemukan atau bukan milik Member.",
-      );
-    }
-
-    const existingPosition =
-      db.prepare(`
-        SELECT id
-        FROM member_demo_positions
-        WHERE member_id = ?
-          AND demo_account_id = ?
-          AND symbol = ?
-          AND status = 'OPEN'
-        LIMIT 1
-      `).get(
-        memberId,
-        demoAccountId,
-        symbol,
-      ) as
-        | {
-            id: string;
-          }
-        | undefined;
-
-    if (existingPosition) {
-      throw new Error(
-        `Sudah ada posisi OPEN untuk ${symbol}.`,
-      );
-    }
-
     const positionValue =
       input.quantity * input.price;
 
@@ -142,12 +97,6 @@ class DemoExecutor {
       );
     }
 
-    if (positionValue > account.balance) {
-      throw new Error(
-        "Saldo demo tidak mencukupi untuk membuka posisi.",
-      );
-    }
-
     const positionId =
       randomUUID();
 
@@ -157,63 +106,30 @@ class DemoExecutor {
     const now =
       Date.now();
 
-    const transaction =
-      db.transaction(() => {
-        const updateResult =
-          db.prepare(`
-            UPDATE demo_accounts
-            SET
-              balance = balance - ?,
-              updated_at = ?
-            WHERE id = ?
-              AND member_id = ?
-              AND balance >= ?
-          `).run(
-            positionValue,
-            now,
-            demoAccountId,
-            memberId,
-            positionValue,
-          );
-
-        if (
-          updateResult.changes !== 1
-        ) {
-          throw new Error(
-            "Saldo demo tidak mencukupi atau akun tidak dapat diperbarui.",
-          );
-        }
-
-        const updatedAccount =
-          db.prepare(`
-            SELECT balance
-            FROM demo_accounts
-            WHERE id = ?
-              AND member_id = ?
-          `).get(
-            demoAccountId,
-            memberId,
-          ) as
-            | {
-                balance: number;
-              }
-            | undefined;
-
-        if (!updatedAccount) {
-          throw new Error(
-            "Demo Account gagal diperbarui.",
-          );
-        }
-
-        if (
-          updatedAccount.balance < 0
-        ) {
-          throw new Error(
-            "Saldo demo tidak boleh negatif.",
-          );
-        }
-
-        db.prepare(`
+    const rows =
+      await sql`
+        WITH updated_account AS (
+          UPDATE demo_accounts
+          SET
+            balance = balance - ${positionValue},
+            updated_at = ${now}
+          WHERE id = ${demoAccountId}
+            AND member_id = ${memberId}
+            AND balance >= ${positionValue}
+            AND NOT EXISTS (
+              SELECT 1
+              FROM member_demo_positions
+              WHERE member_id = ${memberId}
+                AND demo_account_id = ${demoAccountId}
+                AND symbol = ${symbol}
+                AND status = 'OPEN'
+            )
+          RETURNING
+            id,
+            member_id,
+            balance
+        ),
+        inserted_position AS (
           INSERT INTO member_demo_positions (
             id,
             member_id,
@@ -229,23 +145,24 @@ class DemoExecutor {
             opened_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?)
-        `).run(
-          positionId,
-          memberId,
-          demoAccountId,
-          symbol,
-          input.side,
-          input.quantity,
-          input.price,
-          input.price,
-          0,
-          input.decisionId ?? null,
-          now,
-          now,
-        );
-
-        db.prepare(`
+          SELECT
+            ${positionId},
+            ${memberId},
+            ${demoAccountId},
+            ${symbol},
+            ${input.side},
+            ${input.quantity},
+            ${input.price},
+            ${input.price},
+            ${0},
+            'OPEN',
+            ${input.decisionId ?? null},
+            ${now},
+            ${now}
+          FROM updated_account
+          RETURNING id
+        ),
+        inserted_trade AS (
           INSERT INTO member_demo_trades (
             id,
             member_id,
@@ -259,23 +176,102 @@ class DemoExecutor {
             decision_id,
             created_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          tradeId,
-          memberId,
-          demoAccountId,
-          positionId,
-          symbol,
-          input.side,
-          input.quantity,
-          input.price,
-          0,
-          input.decisionId ?? null,
-          now,
-        );
+          SELECT
+            ${tradeId},
+            ${memberId},
+            ${demoAccountId},
+            ${positionId},
+            ${symbol},
+            ${input.side},
+            ${input.quantity},
+            ${input.price},
+            ${0},
+            ${input.decisionId ?? null},
+            ${now}
+          FROM inserted_position
+          RETURNING id
+        )
+        SELECT
+          id,
+          member_id,
+          balance
+        FROM updated_account
+        WHERE EXISTS (
+          SELECT 1
+          FROM inserted_position
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM inserted_trade
+        )
+      `;
 
-        return updatedAccount.balance;
-      });
+    const account =
+      rows[0] as
+        | DemoAccountRow
+        | undefined;
+
+    if (!account) {
+      const existingPositionRows =
+        await sql`
+          SELECT id
+          FROM member_demo_positions
+          WHERE member_id = ${memberId}
+            AND demo_account_id = ${demoAccountId}
+            AND symbol = ${symbol}
+            AND status = 'OPEN'
+          LIMIT 1
+        `;
+
+      if (existingPositionRows[0]) {
+        throw new Error(
+          `Sudah ada posisi OPEN untuk ${symbol}.`,
+        );
+      }
+
+      const accountRows =
+        await sql`
+          SELECT
+            id,
+            member_id,
+            balance
+          FROM demo_accounts
+          WHERE id = ${demoAccountId}
+            AND member_id = ${memberId}
+          LIMIT 1
+        `;
+
+      const existingAccount =
+        accountRows[0];
+
+      if (!existingAccount) {
+        throw new Error(
+          "Demo Account tidak ditemukan atau bukan milik Member.",
+        );
+      }
+
+      if (
+        Number(existingAccount.balance) <
+        positionValue
+      ) {
+        throw new Error(
+          "Saldo demo tidak mencukupi untuk membuka posisi.",
+        );
+      }
+
+      throw new Error(
+        "Posisi demo gagal dibuat.",
+      );
+    }
+
+    const balanceAfter =
+      Number(account.balance);
+
+    if (balanceAfter < 0) {
+      throw new Error(
+        "Saldo demo tidak boleh negatif.",
+      );
+    }
 
     return {
       success: true,
@@ -287,7 +283,7 @@ class DemoExecutor {
       side: input.side,
       quantity: input.quantity,
       price: input.price,
-      balanceAfter: transaction(),
+      balanceAfter,
       timestamp: now,
     };
   }

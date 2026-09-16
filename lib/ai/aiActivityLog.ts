@@ -1,5 +1,6 @@
-import db from "@/lib/db/database";
 import { randomUUID } from "crypto";
+
+import { sql } from "@/lib/db/postgres";
 
 export type AIActivityAction =
   | "BUY"
@@ -32,15 +33,14 @@ export interface AIActivityInput {
 }
 
 class AIActivityLogService {
-  record(
+  async record(
     input: AIActivityInput,
-  ): string {
+  ): Promise<string> {
     const id = randomUUID();
-
     const timestamp =
       input.timestamp ?? Date.now();
 
-    db.prepare(`
+    await sql`
       INSERT INTO ai_activity_logs (
         id,
         member_id,
@@ -58,42 +58,22 @@ class AIActivityLogService {
         created_at
       )
       VALUES (
-        @id,
-        @member_id,
-        @symbol,
-        @action,
-        @confidence,
-        @total_score,
-        @price,
-        @risk_level,
-        @trend,
-        @reasons,
-        @execution_status,
-        @execution_reason,
-        @decision_id,
-        @created_at
+        ${id},
+        ${input.memberId},
+        ${input.symbol},
+        ${input.action},
+        ${input.confidence},
+        ${input.totalScore},
+        ${input.price},
+        ${input.riskLevel},
+        ${input.trend},
+        ${JSON.stringify(input.reasons)},
+        ${input.executionStatus},
+        ${input.executionReason},
+        ${input.decisionId},
+        ${timestamp}
       )
-    `).run({
-      id,
-      member_id: input.memberId,
-      symbol: input.symbol,
-      action: input.action,
-      confidence: input.confidence,
-      total_score: input.totalScore,
-      price: input.price,
-      risk_level: input.riskLevel,
-      trend: input.trend,
-      reasons: JSON.stringify(
-        input.reasons,
-      ),
-      execution_status:
-        input.executionStatus,
-      execution_reason:
-        input.executionReason,
-      decision_id:
-        input.decisionId,
-      created_at: timestamp,
-    });
+    `;
 
     return id;
   }

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { randomUUID } from "node:crypto";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { hashPassword } from "@/lib/member/password";
+
 import { createMemberSession } from "@/lib/member/session";
 
 type RegisterBody = {
@@ -64,16 +67,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingMember = db
-      .prepare(
-        `
-          SELECT id
-          FROM member_accounts
-          WHERE email = ?
-          LIMIT 1
-        `,
-      )
-      .get(email) as
+    const existingMemberRows = await sql`
+      SELECT id
+      FROM member_accounts
+      WHERE email = ${email}
+      LIMIT 1
+    `;
+
+    const existingMember = existingMemberRows[0] as
       | { id: string }
       | undefined;
 
@@ -92,30 +93,28 @@ export async function POST(request: NextRequest) {
     const passwordHash = hashPassword(password);
     const now = Date.now();
 
-    db.prepare(
-      `
-        INSERT INTO member_accounts (
-          id,
-          name,
-          email,
-          password_hash,
-          role,
-          status,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          ?, ?, ?, ?, 'MEMBER', 'PENDING_PAYMENT', ?, ?
-        )
-      `,
-    ).run(
-      id,
-      name,
-      email,
-      passwordHash,
-      now,
-      now,
-    );
+    await sql`
+      INSERT INTO member_accounts (
+        id,
+        name,
+        email,
+        password_hash,
+        role,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${id},
+        ${name},
+        ${email},
+        ${passwordHash},
+        'MEMBER',
+        'PENDING_PAYMENT',
+        ${now},
+        ${now}
+      )
+    `;
 
     await createMemberSession(id);
 

@@ -1,4 +1,5 @@
 import { candleHub } from "@/lib/core/market/CandleHub";
+
 import "@/lib/core/market/candleIndex";
 
 import {
@@ -30,7 +31,7 @@ export async function executeTrade(
   decisionId?: string
 ): Promise<Position | null> {
   if (
-    positionManager.hasOpenPosition(
+    await positionManager.hasOpenPosition(
       symbol
     )
   ) {
@@ -57,7 +58,7 @@ export async function executeTrade(
   const riskPercent = 1;
 
   const quantity =
-    ceoAccount.getPositionSize(
+    await ceoAccount.getPositionSize(
       entryPrice,
       stopLossPercent,
       riskPercent
@@ -78,7 +79,7 @@ export async function executeTrade(
       : entryPrice * 0.96;
 
   const risk =
-    evaluateRisk({
+    await evaluateRisk({
       symbol,
       side: action,
       entryPrice,
@@ -137,7 +138,7 @@ export async function executeTrade(
   };
 
   const opened =
-    positionManager.openPosition(
+    await positionManager.openPosition(
       position
     );
 
@@ -146,7 +147,7 @@ export async function executeTrade(
   }
 
   if (decisionId) {
-    aiMemory.updateResult(
+    await aiMemory.updateResult(
       decisionId,
       {
         entryPrice:

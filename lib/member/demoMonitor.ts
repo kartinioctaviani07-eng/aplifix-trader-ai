@@ -1,6 +1,8 @@
-import db from "@/lib/db/database";
-import { marketHub } from "@/lib/core/market";
 import { randomUUID } from "node:crypto";
+
+import { marketHub } from "@/lib/core/market";
+
+import { sql } from "@/lib/db/postgres";
 
 export interface DemoMonitorPosition {
   id: string;
@@ -39,7 +41,20 @@ interface StoredDemoPosition {
   decision_id: string | null;
 }
 
-type ExitReason = "TAKE_PROFIT" | "STOP_LOSS";
+interface ClosedPositionRow {
+  id: string;
+  member_id: string;
+  demo_account_id: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  entry_price: number;
+  balance_after: number;
+}
+
+type ExitReason =
+  | "TAKE_PROFIT"
+  | "STOP_LOSS";
 
 const STOP_LOSS_PERCENT = 2;
 const TAKE_PROFIT_PERCENT = 4;
@@ -49,137 +64,134 @@ class DemoMonitor {
     side: "BUY" | "SELL",
     quantity: number,
     entryPrice: number,
-    currentPrice: number,
+    currentPrice: number
   ): number {
     if (side === "BUY") {
-      return (currentPrice - entryPrice) * quantity;
+      return (
+        (currentPrice - entryPrice) *
+        quantity
+      );
     }
 
-    return (entryPrice - currentPrice) * quantity;
+    return (
+      (entryPrice - currentPrice) *
+      quantity
+    );
   }
 
   private getExitReason(
     side: "BUY" | "SELL",
     entryPrice: number,
-    currentPrice: number,
+    currentPrice: number
   ): ExitReason | null {
-    const stopLossMultiplier = 1 - STOP_LOSS_PERCENT / 100;
-    const takeProfitMultiplier = 1 + TAKE_PROFIT_PERCENT / 100;
+    const stopLossMultiplier =
+      1 - STOP_LOSS_PERCENT / 100;
+
+    const takeProfitMultiplier =
+      1 + TAKE_PROFIT_PERCENT / 100;
 
     if (side === "BUY") {
-      if (currentPrice <= entryPrice * stopLossMultiplier) {
+      if (
+        currentPrice <=
+        entryPrice * stopLossMultiplier
+      ) {
         return "STOP_LOSS";
       }
 
-      if (currentPrice >= entryPrice * takeProfitMultiplier) {
+      if (
+        currentPrice >=
+        entryPrice * takeProfitMultiplier
+      ) {
         return "TAKE_PROFIT";
       }
 
       return null;
     }
 
-    const shortStopLossMultiplier = 1 + STOP_LOSS_PERCENT / 100;
-    const shortTakeProfitMultiplier = 1 - TAKE_PROFIT_PERCENT / 100;
+    const shortStopLossMultiplier =
+      1 + STOP_LOSS_PERCENT / 100;
 
-    if (currentPrice >= entryPrice * shortStopLossMultiplier) {
+    const shortTakeProfitMultiplier =
+      1 - TAKE_PROFIT_PERCENT / 100;
+
+    if (
+      currentPrice >=
+      entryPrice * shortStopLossMultiplier
+    ) {
       return "STOP_LOSS";
     }
 
-    if (currentPrice <= entryPrice * shortTakeProfitMultiplier) {
+    if (
+      currentPrice <=
+      entryPrice * shortTakeProfitMultiplier
+    ) {
       return "TAKE_PROFIT";
     }
 
     return null;
   }
 
-  private closePosition(
+  private async closePosition(
     position: StoredDemoPosition,
     currentPrice: number,
     unrealizedPnl: number,
     exitReason: ExitReason,
-    now: number,
-  ): DemoMonitorPosition {
+    now: number
+  ): Promise<DemoMonitorPosition | null> {
     const tradeId = randomUUID();
 
-    const transaction = db.transaction(() => {
-      const account = db
-        .prepare(`
-          SELECT balance
-          FROM demo_accounts
-          WHERE id = ?
-            AND member_id = ?
-        `)
-        .get(
-          position.demo_account_id,
-          position.member_id,
-        ) as { balance: number } | undefined;
+    const positionValue =
+      position.quantity *
+      position.entry_price;
 
-      if (!account) {
-        throw new Error("Demo Account tidak ditemukan.");
-      }
+    const returnedCapital =
+      positionValue +
+      unrealizedPnl;
 
-      const positionValue =
-        position.quantity * position.entry_price;
+    if (
+      !Number.isFinite(returnedCapital)
+    ) {
+      throw new Error(
+        "Nilai pengembalian posisi tidak valid."
+      );
+    }
 
-      const returnedCapital =
-        positionValue + unrealizedPnl;
+    const rows = await sql`
+      WITH closed_position AS (
+        UPDATE member_demo_positions
+        SET
+          current_price = ${currentPrice},
+          unrealized_pnl = ${unrealizedPnl},
+          status = 'CLOSED',
+          updated_at = ${now}
+        WHERE id = ${position.id}
+          AND member_id = ${position.member_id}
+          AND demo_account_id = ${position.demo_account_id}
+          AND status = 'OPEN'
+        RETURNING
+          id,
+          member_id,
+          demo_account_id,
+          symbol,
+          side,
+          quantity,
+          entry_price
+      ),
 
-      const newBalance =
-        account.balance + returnedCapital;
+      updated_account AS (
+        UPDATE demo_accounts AS da
+        SET
+          balance =
+            da.balance + ${returnedCapital},
+          updated_at = ${now}
+        FROM closed_position AS cp
+        WHERE da.id = cp.demo_account_id
+          AND da.member_id = cp.member_id
+        RETURNING
+          da.balance
+      ),
 
-      if (newBalance < 0) {
-        throw new Error("Saldo demo tidak boleh negatif.");
-      }
-
-      const updateAccount = db
-        .prepare(`
-          UPDATE demo_accounts
-          SET
-            balance = ?,
-            updated_at = ?
-          WHERE id = ?
-            AND member_id = ?
-        `)
-        .run(
-          newBalance,
-          now,
-          position.demo_account_id,
-          position.member_id,
-        );
-
-      if (updateAccount.changes !== 1) {
-        throw new Error(
-          "Gagal memperbarui saldo Demo Account.",
-        );
-      }
-
-      const updatePosition = db
-        .prepare(`
-          UPDATE member_demo_positions
-          SET
-            current_price = ?,
-            unrealized_pnl = ?,
-            status = 'CLOSED',
-            updated_at = ?
-          WHERE id = ?
-            AND member_id = ?
-            AND status = 'OPEN'
-        `)
-        .run(
-          currentPrice,
-          unrealizedPnl,
-          now,
-          position.id,
-          position.member_id,
-        );
-
-      if (updatePosition.changes !== 1) {
-        throw new Error(
-          "Posisi Demo sudah ditutup atau tidak ditemukan.",
-        );
-      }
-
-      db.prepare(`
+      inserted_trade AS (
         INSERT INTO member_demo_trades (
           id,
           member_id,
@@ -193,34 +205,99 @@ class DemoMonitor {
           decision_id,
           created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        tradeId,
-        position.member_id,
-        position.demo_account_id,
-        position.id,
-        position.symbol,
-        position.side,
-        position.quantity,
-        currentPrice,
-        unrealizedPnl,
-        position.decision_id,
-        now,
+        SELECT
+          ${tradeId},
+          cp.member_id,
+          cp.demo_account_id,
+          cp.id,
+          cp.symbol,
+          cp.side,
+          cp.quantity,
+          ${currentPrice},
+          ${unrealizedPnl},
+          ${position.decision_id ?? null},
+          ${now}
+        FROM closed_position AS cp
+        CROSS JOIN updated_account AS ua
+        RETURNING id
+      )
+
+      SELECT
+        cp.id,
+        cp.member_id,
+        cp.demo_account_id,
+        cp.symbol,
+        cp.side,
+        cp.quantity,
+        cp.entry_price,
+        ua.balance AS balance_after
+      FROM closed_position AS cp
+      CROSS JOIN updated_account AS ua
+      WHERE EXISTS (
+        SELECT 1
+        FROM inserted_trade
+      )
+    `;
+
+    const closed =
+      rows[0] as
+        | ClosedPositionRow
+        | undefined;
+
+    if (!closed) {
+      const existingRows = await sql`
+        SELECT
+          id,
+          status
+        FROM member_demo_positions
+        WHERE id = ${position.id}
+          AND member_id = ${position.member_id}
+        LIMIT 1
+      `;
+
+      const existing =
+        existingRows[0] as
+          | {
+              id: string;
+              status: string;
+            }
+          | undefined;
+
+      if (!existing) {
+        throw new Error(
+          "Posisi Demo tidak ditemukan."
+        );
+      }
+
+      if (existing.status !== "OPEN") {
+        return null;
+      }
+
+      throw new Error(
+        "Posisi Demo gagal ditutup."
       );
+    }
 
-      return newBalance;
-    });
+    const balanceAfter =
+      Number(closed.balance_after);
 
-    transaction();
+    if (balanceAfter < 0) {
+      throw new Error(
+        "Saldo demo tidak boleh negatif."
+      );
+    }
 
     return {
-      id: position.id,
-      memberId: position.member_id,
-      demoAccountId: position.demo_account_id,
-      symbol: position.symbol,
-      side: position.side,
-      quantity: position.quantity,
-      entryPrice: position.entry_price,
+      id: closed.id,
+      memberId: closed.member_id,
+      demoAccountId:
+        closed.demo_account_id,
+      symbol: closed.symbol,
+      side: closed.side,
+      quantity: Number(closed.quantity),
+      entryPrice: Number(
+        closed.entry_price
+      ),
       currentPrice,
       unrealizedPnl,
       status: "CLOSED",
@@ -230,45 +307,54 @@ class DemoMonitor {
   }
 
   async monitorMember(
-    memberId: string,
+    memberId: string
   ): Promise<DemoMonitorResult> {
-    const normalizedMemberId = memberId.trim();
+    const normalizedMemberId =
+      memberId.trim();
 
     if (!normalizedMemberId) {
-      throw new Error("Member ID wajib diisi.");
+      throw new Error(
+        "Member ID wajib diisi."
+      );
     }
 
-    const rows = db
-      .prepare(`
-        SELECT
-          id,
-          member_id,
-          demo_account_id,
-          symbol,
-          side,
-          quantity,
-          entry_price,
-          current_price,
-          unrealized_pnl,
-          status,
-          decision_id
-        FROM member_demo_positions
-        WHERE member_id = ?
-          AND status = 'OPEN'
-        ORDER BY opened_at ASC
-      `)
-      .all(normalizedMemberId) as StoredDemoPosition[];
+    const rows = await sql`
+      SELECT
+        id,
+        member_id,
+        demo_account_id,
+        symbol,
+        side,
+        quantity,
+        entry_price,
+        current_price,
+        unrealized_pnl,
+        status,
+        decision_id
+      FROM member_demo_positions
+      WHERE member_id = ${normalizedMemberId}
+        AND status = 'OPEN'
+      ORDER BY opened_at ASC
+    `;
 
-    const updatedPositions: DemoMonitorPosition[] = [];
+    const positions =
+      rows as StoredDemoPosition[];
+
+    const updatedPositions:
+      DemoMonitorPosition[] = [];
+
     let closedCount = 0;
+
     const now = Date.now();
 
-    for (const position of rows) {
-      const ticker = await marketHub.getTicker(
-        position.symbol,
-      );
+    for (const position of positions) {
+      const ticker =
+        await marketHub.getTicker(
+          position.symbol
+        );
 
-      const currentPrice = ticker.price;
+      const currentPrice =
+        ticker.price;
 
       if (
         !Number.isFinite(currentPrice) ||
@@ -282,58 +368,58 @@ class DemoMonitor {
           position.side,
           position.quantity,
           position.entry_price,
-          currentPrice,
+          currentPrice
         );
 
       const exitReason =
         this.getExitReason(
           position.side,
           position.entry_price,
-          currentPrice,
+          currentPrice
         );
 
       if (exitReason) {
         const closedPosition =
-          this.closePosition(
+          await this.closePosition(
             position,
             currentPrice,
             unrealizedPnl,
             exitReason,
-            now,
+            now
           );
 
-        updatedPositions.push(closedPosition);
-        closedCount += 1;
+        if (closedPosition) {
+          updatedPositions.push(
+            closedPosition
+          );
+
+          closedCount += 1;
+        }
+
         continue;
       }
 
-      const updateResult = db
-        .prepare(`
-          UPDATE member_demo_positions
-          SET
-            current_price = ?,
-            unrealized_pnl = ?,
-            updated_at = ?
-          WHERE id = ?
-            AND member_id = ?
-            AND status = 'OPEN'
-        `)
-        .run(
-          currentPrice,
-          unrealizedPnl,
-          now,
-          position.id,
-          normalizedMemberId,
-        );
+      const updateRows = await sql`
+        UPDATE member_demo_positions
+        SET
+          current_price = ${currentPrice},
+          unrealized_pnl = ${unrealizedPnl},
+          updated_at = ${now}
+        WHERE id = ${position.id}
+          AND member_id = ${normalizedMemberId}
+          AND status = 'OPEN'
+        RETURNING id
+      `;
 
-      if (updateResult.changes !== 1) {
+      if (updateRows.length !== 1) {
         continue;
       }
 
       updatedPositions.push({
         id: position.id,
         memberId: position.member_id,
-        demoAccountId: position.demo_account_id,
+        demoAccountId:
+          position.demo_account_id,
         symbol: position.symbol,
         side: position.side,
         quantity: position.quantity,
@@ -355,4 +441,5 @@ class DemoMonitor {
   }
 }
 
-export const demoMonitor = new DemoMonitor();
+export const demoMonitor =
+  new DemoMonitor();

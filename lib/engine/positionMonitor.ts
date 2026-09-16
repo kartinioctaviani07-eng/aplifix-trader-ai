@@ -25,7 +25,7 @@ export type PositionMonitorInput = {
   low: number;
 };
 
-export function monitorPositions(
+export async function monitorPositions(
   input: PositionMonitorInput
 ) {
   const {
@@ -35,18 +35,17 @@ export function monitorPositions(
     low,
   } = input;
 
-  positionManager.updatePrice(
+  await positionManager.updatePrice(
     symbol,
     price
   );
 
-  const positions =
-    positionManager
-      .getOpenPositions()
-      .filter(
-        (position) =>
-          position.symbol === symbol
-      );
+  const positions = (
+    await positionManager.getOpenPositions()
+  ).filter(
+    (position) =>
+      position.symbol === symbol
+  );
 
   const closed: Array<{
     id: string;
@@ -114,7 +113,7 @@ export function monitorPositions(
       profit.profit
     );
 
-    tradeHistory.add({
+    await tradeHistory.add({
       id: position.id,
       symbol: position.symbol,
       side: position.side,
@@ -137,7 +136,7 @@ export function monitorPositions(
     });
 
     if (position.decisionId) {
-      aiMemory.updateResult(
+      await aiMemory.updateResult(
         position.decisionId,
         {
           entryPrice:
@@ -152,7 +151,7 @@ export function monitorPositions(
       );
     }
 
-    positionManager.closePosition(
+    await positionManager.closePosition(
       position.id
     );
 

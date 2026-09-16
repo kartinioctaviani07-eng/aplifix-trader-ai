@@ -12,24 +12,26 @@ import { calculateRisk } from "@/lib/engine/riskEngine";
 
 import { generateSignal } from "@/lib/engine/signalEngine";
 
+import { aiMemory } from "@/lib/engine/aiMemory";
+
 class AnalysisService {
   async analyze(
-    symbol: string = "BTCUSDT"
+    symbol: string = "BTCUSDT",
   ) {
     const candles =
       await candleHub.getCandles(
         symbol,
-        "1h"
+        "1h",
       );
 
     const technical =
       technicalAnalysisService.analyze(
-        candles
+        candles,
       );
 
     const scores =
       await marketScoreService.getScores(
-        symbol
+        symbol,
       );
 
     const risk =
@@ -38,6 +40,12 @@ class AnalysisService {
         stopLossPercent: 3,
         positionSizePercent: 5,
       });
+
+    const profitHistory =
+      await aiMemory.getProfitHistory();
+
+    const lossHistory =
+      await aiMemory.getLossHistory();
 
     const decision =
       makeDecision({
@@ -58,13 +66,19 @@ class AnalysisService {
 
         riskScore:
           risk.riskScore,
+
+        confidenceWins:
+          profitHistory.length,
+
+        confidenceLosses:
+          lossHistory.length,
       });
 
     const signal =
       generateSignal(
         technical,
         risk,
-        decision
+        decision,
       );
 
     return {

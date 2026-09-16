@@ -1,5 +1,7 @@
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { tradeHistory } from "./tradeHistory";
+
 import {
   positionManager,
   Position,
@@ -42,125 +44,153 @@ function calculateUnrealizedProfit(
 }
 
 class CEOAccount {
-  private readonly initialBalance: number;
-  private balance: number;
+  private account: AccountRow | null = null;
 
-  constructor() {
-    const existingAccount =
-      db
-        .prepare(
-          `
-            SELECT
-              id,
-              initial_balance,
-              balance,
-              created_at,
-              updated_at
-            FROM account
-            WHERE id = 1
-          `
-        )
-        .get() as AccountRow | undefined;
+  private async ensureAccount(): Promise<AccountRow> {
+    if (this.account) {
+      return this.account;
+    }
 
-    if (existingAccount) {
-      this.initialBalance =
-        existingAccount.initial_balance;
+    const existing = (await sql`
+      SELECT
+        id,
+        initial_balance,
+        balance,
+        created_at,
+        updated_at
+      FROM account
+      WHERE id = 1
+      LIMIT 1
+    `) as unknown as AccountRow[];
 
-      this.balance =
-        existingAccount.balance;
-
-      return;
+    if (existing.length > 0) {
+      this.account = existing[0];
+      return existing[0];
     }
 
     const now = Date.now();
 
-    db.prepare(
-      `
-        INSERT INTO account (
-          id,
-          initial_balance,
-          balance,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          1,
-          ?,
-          ?,
-          ?,
-          ?
-        )
-      `
-    ).run(
-      INITIAL_BALANCE,
-      INITIAL_BALANCE,
-      now,
-      now
-    );
+    await sql`
+      INSERT INTO account (
+        id,
+        initial_balance,
+        balance,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        1,
+        ${INITIAL_BALANCE},
+        ${INITIAL_BALANCE},
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
 
-    this.initialBalance =
-      INITIAL_BALANCE;
+    const created = (await sql`
+      SELECT
+        id,
+        initial_balance,
+        balance,
+        created_at,
+        updated_at
+      FROM account
+      WHERE id = 1
+      LIMIT 1
+    `) as unknown as AccountRow[];
 
-    this.balance =
-      INITIAL_BALANCE;
-  }
-
-  getBalance(): number {
-    return this.balance;
-  }
-
-  getInitialBalance(): number {
-    return this.initialBalance;
-  }
-
-  applyProfit(
-    profit: number
-  ): void {
-    this.balance =
-      Number(
-        (
-          this.balance +
-          profit
-        ).toFixed(2)
+    if (created.length === 0) {
+      throw new Error(
+        "CEO account could not be initialized."
       );
+    }
 
-    db.prepare(
-      `
-        UPDATE account
-        SET
-          balance = ?,
-          updated_at = ?
-        WHERE id = 1
-      `
-    ).run(
-      this.balance,
-      Date.now()
-    );
+    this.account = created[0];
+
+    return created[0];
   }
 
-  getRealizedProfit(): number {
+  private async refreshAccount(): Promise<AccountRow> {
+    this.account = null;
+    return this.ensureAccount();
+  }
+
+  async getBalance(): Promise<number> {
+    const account = await this.ensureAccount();
+    return account.balance;
+  }
+
+  async getInitialBalance(): Promise<number> {
+    const account = await this.ensureAccount();
+    return account.initial_balance;
+  }
+
+  async applyProfit(profit: number): Promise<void> {
+    const updated = (await sql`
+      UPDATE account
+      SET
+        balance = balance + ${profit},
+        updated_at = ${Date.now()}
+      WHERE id = 1
+      RETURNING
+        id,
+        initial_balance,
+        balance,
+        created_at,
+        updated_at
+    `) as unknown as AccountRow[];
+
+    if (updated.length > 0) {
+      this.account = updated[0];
+      return;
+    }
+
+    await this.ensureAccount();
+
+    const retry = (await sql`
+      UPDATE account
+      SET
+        balance = balance + ${profit},
+        updated_at = ${Date.now()}
+      WHERE id = 1
+      RETURNING
+        id,
+        initial_balance,
+        balance,
+        created_at,
+        updated_at
+    `) as unknown as AccountRow[];
+
+    if (retry.length === 0) {
+      throw new Error(
+        "CEO account update failed."
+      );
+    }
+
+    this.account = retry[0];
+  }
+
+  async getRealizedProfit(): Promise<number> {
+    const account = await this.ensureAccount();
+
     return Number(
       (
-        this.balance -
-        this.initialBalance
+        account.balance -
+        account.initial_balance
       ).toFixed(2)
     );
   }
 
-  getUnrealizedProfit(): number {
+  async getUnrealizedProfit(): Promise<number> {
     const positions =
-      positionManager.getOpenPositions();
+      await positionManager.getOpenPositions();
 
     const unrealizedProfit =
       positions.reduce(
-        (
-          total,
-          position
-        ) =>
+        (total, position) =>
           total +
-          calculateUnrealizedProfit(
-            position
-          ),
+          calculateUnrealizedProfit(position),
         0
       );
 
@@ -169,20 +199,25 @@ class CEOAccount {
     );
   }
 
-  getEquity(): number {
+  async getEquity(): Promise<number> {
+    const account = await this.ensureAccount();
+
+    const unrealizedProfit =
+      await this.getUnrealizedProfit();
+
     return Number(
       (
-        this.balance +
-        this.getUnrealizedProfit()
+        account.balance +
+        unrealizedProfit
       ).toFixed(2)
     );
   }
 
-  getPositionSize(
+  async getPositionSize(
     entryPrice: number,
     stopLossPercent: number,
     riskPercent = 1
-  ): number {
+  ): Promise<number> {
     if (
       entryPrice <= 0 ||
       stopLossPercent <= 0 ||
@@ -191,64 +226,72 @@ class CEOAccount {
       return 0;
     }
 
+    const account = await this.ensureAccount();
+
     const riskCapital =
-      this.balance *
+      account.balance *
       (riskPercent / 100);
 
     const stopDistance =
       entryPrice *
       (stopLossPercent / 100);
 
-    if (
-      stopDistance <= 0
-    ) {
+    if (stopDistance <= 0) {
       return 0;
     }
 
     const quantity =
-      riskCapital /
-      stopDistance;
+      riskCapital / stopDistance;
 
     return Number(
       quantity.toFixed(6)
     );
   }
 
-  getSnapshot(): CEOAccountSnapshot {
+  async getSnapshot(): Promise<CEOAccountSnapshot> {
+    const account =
+      await this.refreshAccount();
+
     const trades =
-      tradeHistory.getAll();
+      await tradeHistory.getAll();
 
     const wins =
       trades.filter(
-        (trade) =>
-          trade.profit > 0
+        (trade) => trade.profit > 0
       ).length;
 
     const winRate =
       trades.length > 0
-        ? (wins / trades.length) *
-          100
+        ? (wins / trades.length) * 100
         : 0;
+
+    const unrealizedProfit =
+      await this.getUnrealizedProfit();
+
+    const equity =
+      Number(
+        (
+          account.balance +
+          unrealizedProfit
+        ).toFixed(2)
+      );
 
     return {
       initialBalance:
-        this.initialBalance,
-
+        account.initial_balance,
       balance:
-        this.balance,
-
+        account.balance,
       realizedProfit:
-        this.getRealizedProfit(),
-
-      unrealizedProfit:
-        this.getUnrealizedProfit(),
-
-      equity:
-        this.getEquity(),
-
+        Number(
+          (
+            account.balance -
+            account.initial_balance
+          ).toFixed(2)
+        ),
+      unrealizedProfit,
+      equity,
       totalTrades:
         trades.length,
-
       winRate:
         Number(
           winRate.toFixed(2)

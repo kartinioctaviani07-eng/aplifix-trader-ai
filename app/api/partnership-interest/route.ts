@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { randomUUID } from "node:crypto";
+
+import { sql } from "@/lib/db/postgres";
 
 type PartnershipRequest = {
   name?: string;
@@ -11,12 +13,15 @@ type PartnershipRequest = {
 };
 
 function clean(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as PartnershipRequest;
+    const body =
+      (await request.json()) as PartnershipRequest;
 
     const name = clean(body.name);
     const email = clean(body.email);
@@ -28,13 +33,15 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Nama, email, dan jenis minat kerja sama wajib diisi.",
+          message:
+            "Nama, email, dan jenis minat kerja sama wajib diisi.",
         },
         { status: 400 },
       );
     }
 
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailPattern.test(email)) {
       return NextResponse.json(
@@ -46,44 +53,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     const timestamp = Date.now();
 
-    db.prepare(
-      `
-        INSERT INTO partnership_interests (
-          id,
-          name,
-          email,
-          phone,
-          interest,
-          message,
-          status,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          @id,
-          @name,
-          @email,
-          @phone,
-          @interest,
-          @message,
-          'NEW',
-          @createdAt,
-          @updatedAt
-        )
-      `,
-    ).run({
-      id,
-      name,
-      email,
-      phone,
-      interest,
-      message,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
+    await sql`
+      INSERT INTO partnership_interests (
+        id,
+        name,
+        email,
+        phone,
+        interest,
+        message,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${id},
+        ${name},
+        ${email},
+        ${phone},
+        ${interest},
+        ${message},
+        'NEW',
+        ${timestamp},
+        ${timestamp}
+      )
+    `;
 
     return NextResponse.json({
       success: true,

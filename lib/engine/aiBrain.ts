@@ -66,8 +66,8 @@ type Decision =
   ReturnType<typeof makeDecision>;
 
 type OpenPosition =
-  ReturnType<
-    typeof positionManager.getOpenPositions
+  Awaited<
+    ReturnType<typeof positionManager.getOpenPositions>
   >[number];
 
 type FundamentalAnalysis =
@@ -99,7 +99,9 @@ export interface AIBrainResult {
 
   risk: ReturnType<typeof calculateRisk>;
 
-  learning: ReturnType<typeof getLearningData>;
+  learning: Awaited<
+    ReturnType<typeof getLearningData>
+  >;
 
   decision: Decision;
 
@@ -122,19 +124,14 @@ export class AIBrain {
       calculateMarketScore({
         trend:
           technical.trend,
-
         rsi:
           technical.rsi,
-
         macd:
           technical.macd,
-
         signal:
           technical.signal,
-
         adx:
           technical.adx,
-
         patternStrength:
           technical.trendStrength,
       });
@@ -193,16 +190,14 @@ export class AIBrain {
       calculateRisk({
         volatility:
           volatilityPercent,
-
         stopLossPercent:
           3,
-
         positionSizePercent:
           5,
       });
 
     const learning =
-      getLearningData();
+      await getLearningData();
 
     const technicalScore =
       Math.round(
@@ -220,59 +215,45 @@ export class AIBrain {
     const decision =
       makeDecision({
         technicalScore,
-
         newsScore:
           sentiment.score,
-
         fundamentalScore:
           fundamental.score,
-
         macroScore:
           macro.score,
-
         sentimentScore:
           sentiment.score,
-
         riskScore:
           risk.riskScore,
-
         learningScore,
+        confidenceWins:
+          learning.profitTrade,
+        confidenceLosses:
+          learning.lossTrade,
       });
 
     const positions =
-      positionManager
-        .getOpenPositions()
-        .filter(
-          (position) =>
-            position.symbol ===
-            symbol,
-        );
+      (
+        await positionManager.getOpenPositions()
+      ).filter(
+        (position) =>
+          position.symbol ===
+          symbol,
+      );
 
     return {
       symbol,
-
       technical,
-
       marketScore,
-
       multiTimeframe,
-
       consensus,
-
       sentiment,
-
       fundamental,
-
       macro,
-
       risk,
-
       learning,
-
       decision,
-
       positions,
-
       timestamp:
         Date.now(),
     };
@@ -298,43 +279,31 @@ export class AIBrain {
         candles,
       );
 
-    aiMemory.add({
+    await aiMemory.add({
       id:
         result.decision.id,
-
       symbol:
         result.symbol,
-
       action:
         result.decision.action,
-
       confidence:
         result.decision.confidence,
-
       reason:
         result.decision.reason,
-
       timestamp:
         Date.now(),
-
       trend:
         result.technical.trend,
-
       ema20:
         result.technical.ema20,
-
       ema50:
         result.technical.ema50,
-
       rsi:
         result.technical.rsi,
-
       macd:
         result.technical.macd,
-
       atr:
         result.technical.atr,
-
       marketCondition:
         result.multiTimeframe
           .overallTrend,

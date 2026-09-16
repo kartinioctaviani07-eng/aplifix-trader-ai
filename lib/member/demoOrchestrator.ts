@@ -1,7 +1,11 @@
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { demoWorker } from "@/lib/member/demoWorker";
+
 import { demoExecutor } from "@/lib/member/demoExecutor";
+
 import { demoMonitor } from "@/lib/member/demoMonitor";
+
 import { aiActivityLog } from "@/lib/ai/aiActivityLog";
 
 export interface DemoOrchestratorResult {
@@ -50,19 +54,27 @@ const WATCHLIST = [
  *
  * Tidak ada random BUY/SELL dan tidak ada transaksi palsu.
  */
+
 const DEMO_MIN_CONFIDENCE = 55;
 
 /**
  * Demo tetap membatasi ukuran posisi.
  * Setiap posisi maksimal 5% dari balance saat ini.
  */
+
 const DEMO_MAX_POSITION_PERCENT = 5;
 
 function shuffleWatchlist(): Array<(typeof WATCHLIST)[number]> {
   const shuffled = [...WATCHLIST];
 
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
+  for (
+    let index = shuffled.length - 1;
+    index > 0;
+    index -= 1
+  ) {
+    const randomIndex = Math.floor(
+      Math.random() * (index + 1),
+    );
 
     [shuffled[index], shuffled[randomIndex]] = [
       shuffled[randomIndex],
@@ -74,22 +86,23 @@ function shuffleWatchlist(): Array<(typeof WATCHLIST)[number]> {
 }
 
 class DemoOrchestrator {
-  private getDemoAccount(
+  private async getDemoAccount(
     memberId: string,
-  ): DemoAccount {
-    const account = db
-      .prepare(`
-        SELECT
-          id,
-          member_id,
-          balance
-        FROM demo_accounts
-        WHERE member_id = ?
-        LIMIT 1
-      `)
-      .get(memberId) as
-      | DemoAccount
-      | undefined;
+  ): Promise<DemoAccount> {
+    const rows = await sql`
+      SELECT
+        id,
+        member_id,
+        balance
+      FROM demo_accounts
+      WHERE member_id = ${memberId}
+      LIMIT 1
+    `;
+
+    const account =
+      rows[0] as
+        | DemoAccount
+        | undefined;
 
     if (!account) {
       throw new Error(
@@ -97,7 +110,11 @@ class DemoOrchestrator {
       );
     }
 
-    return account;
+    return {
+      id: account.id,
+      member_id: account.member_id,
+      balance: Number(account.balance),
+    };
   }
 
   private calculateQuantity(
@@ -163,15 +180,22 @@ class DemoOrchestrator {
     };
   }
 
-  private recordActivity(
+  private async recordActivity(
     memberId: string,
     decision: {
       symbol: string;
-      action: "BUY" | "SELL" | "HOLD" | "WAIT";
+      action:
+        | "BUY"
+        | "SELL"
+        | "HOLD"
+        | "WAIT";
       confidence: number;
       totalScore: number;
       price: number;
-      riskLevel: "LOW" | "MEDIUM" | "HIGH";
+      riskLevel:
+        | "LOW"
+        | "MEDIUM"
+        | "HIGH";
       trend: string;
       reasons: string[];
       decisionId: string;
@@ -181,8 +205,8 @@ class DemoOrchestrator {
       | "NOT_EXECUTED"
       | "REJECTED",
     executionReason: string,
-  ): void {
-    aiActivityLog.record({
+  ): Promise<void> {
+    await aiActivityLog.record({
       memberId,
       symbol: decision.symbol,
       action: decision.action,
@@ -220,11 +244,12 @@ class DemoOrchestrator {
 
     let executedCount = 0;
 
-    const cycleWatchlist = shuffleWatchlist();
+    const cycleWatchlist =
+      shuffleWatchlist();
 
     for (const symbol of cycleWatchlist) {
       const account =
-        this.getDemoAccount(
+        await this.getDemoAccount(
           normalizedMemberId,
         );
 
@@ -241,6 +266,7 @@ class DemoOrchestrator {
        * Sebaliknya, AI mencatat HOLD agar Member dapat
        * melihat bahwa posisi sedang dipantau.
        */
+
       const openPosition =
         monitorResult.positions.find(
           (position) =>
@@ -249,7 +275,8 @@ class DemoOrchestrator {
         );
 
       if (openPosition) {
-        const pnl = openPosition.unrealizedPnl;
+        const pnl =
+          openPosition.unrealizedPnl;
 
         const pnlText =
           pnl >= 0
@@ -272,7 +299,7 @@ class DemoOrchestrator {
           ],
         };
 
-        this.recordActivity(
+        await this.recordActivity(
           normalizedMemberId,
           holdDecision,
           "NOT_EXECUTED",
@@ -307,6 +334,7 @@ class DemoOrchestrator {
        * Ini penting karena tidak melakukan transaksi
        * merupakan keputusan AI yang valid.
        */
+
       if (
         decision.action !== "BUY" &&
         decision.action !== "SELL"
@@ -314,7 +342,7 @@ class DemoOrchestrator {
         const reason =
           "AI belum memberikan signal BUY/SELL.";
 
-        this.recordActivity(
+        await this.recordActivity(
           normalizedMemberId,
           decision,
           "NOT_EXECUTED",
@@ -328,7 +356,8 @@ class DemoOrchestrator {
             decision.confidence,
           totalScore:
             decision.totalScore,
-          price: decision.price,
+          price:
+            decision.price,
           riskLevel:
             decision.riskLevel,
           trend:
@@ -352,8 +381,9 @@ class DemoOrchestrator {
        * Signal BUY/SELL ada,
        * tetapi policy Demo tidak mengizinkan eksekusi.
        */
+
       if (!executionPolicy.allowed) {
-        this.recordActivity(
+        await this.recordActivity(
           normalizedMemberId,
           decision,
           "REJECTED",
@@ -367,7 +397,8 @@ class DemoOrchestrator {
             decision.confidence,
           totalScore:
             decision.totalScore,
-          price: decision.price,
+          price:
+            decision.price,
           riskLevel:
             decision.riskLevel,
           trend:
@@ -395,7 +426,7 @@ class DemoOrchestrator {
         const reason =
           "Quantity Demo tidak valid.";
 
-        this.recordActivity(
+        await this.recordActivity(
           normalizedMemberId,
           decision,
           "NOT_EXECUTED",
@@ -409,7 +440,8 @@ class DemoOrchestrator {
             decision.confidence,
           totalScore:
             decision.totalScore,
-          price: decision.price,
+          price:
+            decision.price,
           riskLevel:
             decision.riskLevel,
           trend:
@@ -444,7 +476,7 @@ class DemoOrchestrator {
         const reason =
           `AI membuka posisi Demo Aggressive (${decision.confidence}% confidence, risk ${decision.riskLevel}).`;
 
-        this.recordActivity(
+        await this.recordActivity(
           normalizedMemberId,
           decision,
           "EXECUTED",
@@ -476,7 +508,7 @@ class DemoOrchestrator {
             ? error.message
             : "Gagal membuka posisi Demo.";
 
-        this.recordActivity(
+        await this.recordActivity(
           normalizedMemberId,
           decision,
           "NOT_EXECUTED",

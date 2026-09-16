@@ -2,48 +2,30 @@ import { NextResponse } from "next/server";
 
 import { aiMemory } from "@/lib/engine/aiMemory";
 
-
-export async function GET(){
-
+export async function GET() {
   try {
-
     const history =
-      aiMemory
-        .getAll()
-        .reverse();
-
+      (
+        await aiMemory.getAll()
+      ).reverse();
 
     return NextResponse.json({
-
-      success:true,
-
-      total:
-        history.length,
-
+      success: true,
+      total: history.length,
       history,
-
     });
-
-
-  } catch(error){
-
-
+  } catch (error) {
     return NextResponse.json(
-
       {
-        success:false,
+        success: false,
         message:
           error instanceof Error
-          ? error.message
-          : "Unknown error",
+            ? error.message
+            : "Unknown error",
       },
-
       {
-        status:500,
-      }
-
+        status: 500,
+      },
     );
-
   }
-
 }

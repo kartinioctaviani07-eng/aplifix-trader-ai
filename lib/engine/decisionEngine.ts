@@ -1,5 +1,4 @@
 import {
-  adaptConfidence,
   adaptConfidenceFromStats,
 } from "./adaptiveConfidence";
 
@@ -28,7 +27,7 @@ export type DecisionResult = {
 };
 
 export function makeDecision(
-  input: DecisionInput
+  input: DecisionInput,
 ): DecisionResult {
   const weights = {
     technical: 0.40,
@@ -57,56 +56,60 @@ export function makeDecision(
     input.riskScore *
       weights.risk +
     learningScore *
-      weights.learning
+      weights.learning,
   );
 
   const reason: string[] = [];
 
   if (input.technicalScore >= 80) {
     reason.push(
-      "Technical trend bullish kuat."
+      "Technical trend bullish kuat.",
     );
-  } else if (input.technicalScore >= 60) {
+  } else if (
+    input.technicalScore >= 60
+  ) {
     reason.push(
-      "Technical trend mulai mendukung."
+      "Technical trend mulai mendukung.",
     );
-  } else if (input.technicalScore <= 30) {
+  } else if (
+    input.technicalScore <= 30
+  ) {
     reason.push(
-      "Technical trend masih bearish."
+      "Technical trend masih bearish.",
     );
   } else {
     reason.push(
-      "Technical belum memberikan konfirmasi."
+      "Technical belum memberikan konfirmasi.",
     );
   }
 
   if (input.newsScore >= 70) {
     reason.push(
-      "News sentiment positif."
+      "News sentiment positif.",
     );
   }
 
   if (input.newsScore <= 30) {
     reason.push(
-      "News sentiment negatif."
+      "News sentiment negatif.",
     );
   }
 
   if (input.riskScore >= 80) {
     reason.push(
-      "Risk management aman."
+      "Risk management aman.",
     );
   }
 
   if (input.riskScore < 50) {
     reason.push(
-      "Risiko perdagangan tinggi."
+      "Risiko perdagangan tinggi.",
     );
   }
 
   if (learningScore >= 70) {
     reason.push(
-      "AI learning history mendukung keputusan."
+      "AI learning history mendukung keputusan.",
     );
   }
 
@@ -133,21 +136,18 @@ export function makeDecision(
   }
 
   const adaptive =
-    input.confidenceWins !== undefined &&
-    input.confidenceLosses !== undefined
-      ? adaptConfidenceFromStats(
-          totalScore,
-          input.confidenceWins,
-          input.confidenceLosses
-        )
-      : adaptConfidence(totalScore);
+    adaptConfidenceFromStats(
+      totalScore,
+      input.confidenceWins ?? 0,
+      input.confidenceLosses ?? 0,
+    );
 
   reason.push(
-    `Adaptive bonus: +${adaptive.bonus.toFixed(1)}`
+    `Adaptive bonus: +${adaptive.bonus.toFixed(1)}`,
   );
 
   reason.push(
-    `Adaptive penalty: -${adaptive.penalty.toFixed(1)}`
+    `Adaptive penalty: -${adaptive.penalty.toFixed(1)}`,
   );
 
   return {

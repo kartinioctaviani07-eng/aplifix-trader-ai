@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 import { getOfficeSession } from "@/lib/office/session";
 
 const PARTNERSHIP_STATUSES = [
@@ -47,35 +47,28 @@ type DashboardData = {
   recentPartnerships: RecentPartnership[];
 };
 
-function getDashboardData(): DashboardData {
-  const totalRow = db
-    .prepare(
-      `
-        SELECT COUNT(*) AS count
-        FROM partnership_interests
-      `,
-    )
-    .get() as { count: number };
+async function getDashboardData(): Promise<DashboardData> {
+  const totalRows = await sql`
+    SELECT COUNT(*)::int AS count
+    FROM partnership_interests
+  `;
 
-  const statusRows = db
-    .prepare(
-      `
-        SELECT
-          status,
-          COUNT(*) AS count
-        FROM partnership_interests
-        GROUP BY status
-      `,
-    )
-    .all() as Array<{
-      status: string;
-      count: number;
-    }>;
+  const totalRow = totalRows[0] as
+    | { count: number }
+    | undefined;
+
+  const statusRows = await sql`
+    SELECT
+      status,
+      COUNT(*)::int AS count
+    FROM partnership_interests
+    GROUP BY status
+  `;
 
   const statusMap = new Map(
     statusRows.map((row) => [
-      row.status,
-      row.count,
+      String(row.status),
+      Number(row.count),
     ]),
   );
 
@@ -85,25 +78,24 @@ function getDashboardData(): DashboardData {
       count: statusMap.get(status) ?? 0,
     }));
 
-  const recentPartnerships = db
-    .prepare(
-      `
-        SELECT
-          id,
-          name,
-          email,
-          interest,
-          status,
-          created_at
-        FROM partnership_interests
-        ORDER BY created_at DESC
-        LIMIT 5
-      `,
-    )
-    .all() as RecentPartnership[];
+  const recentRows = await sql`
+    SELECT
+      id,
+      name,
+      email,
+      interest,
+      status,
+      created_at
+    FROM partnership_interests
+    ORDER BY created_at DESC
+    LIMIT 5
+  `;
+
+  const recentPartnerships =
+    recentRows as unknown as RecentPartnership[];
 
   return {
-    totalPartnership: totalRow.count,
+    totalPartnership: Number(totalRow?.count ?? 0),
     statusCounts,
     recentPartnerships,
   };
@@ -123,7 +115,7 @@ export default async function OfficePage() {
     redirect("/office/login");
   }
 
-  const dashboard = getDashboardData();
+  const dashboard = await getDashboardData();
 
   const newCount =
     dashboard.statusCounts.find(
@@ -153,11 +145,9 @@ export default async function OfficePage() {
             <p className="mb-2 text-sm font-medium uppercase tracking-[0.25em] text-emerald-400">
               APLIFIX DIGITAL OFFICE
             </p>
-
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
               Office Dashboard
             </h1>
-
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
               Pusat kendali internal APLIFIX untuk
               memantau aktivitas bisnis, partnership,
@@ -169,7 +159,6 @@ export default async function OfficePage() {
             <p className="text-xs uppercase tracking-wider text-emerald-400">
               Office Account
             </p>
-
             <p className="mt-1 text-sm text-slate-300">
               {session.email}
             </p>

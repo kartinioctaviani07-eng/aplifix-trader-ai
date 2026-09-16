@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { randomUUID } from "node:crypto";
+
+import { sql } from "@/lib/db/postgres";
 import { getOfficeSession } from "@/lib/office/session";
 
 const PARTNERSHIP_STATUSES = [
@@ -26,15 +28,6 @@ type PartnershipInterest = {
   status: string;
   created_at: number;
   updated_at: number;
-};
-
-type StatusHistory = {
-  id: string;
-  partnership_id: string;
-  previous_status: string | null;
-  new_status: string;
-  changed_by: string;
-  created_at: number;
 };
 
 type StatusUpdateRequest = {
@@ -70,31 +63,30 @@ export async function GET() {
   }
 
   try {
-    const rows = db
-      .prepare(
-        `
-          SELECT
-            id,
-            name,
-            email,
-            phone,
-            interest,
-            message,
-            status,
-            created_at,
-            updated_at
-          FROM partnership_interests
-          ORDER BY created_at DESC
-        `,
-      )
-      .all() as PartnershipInterest[];
+    const rows = await sql`
+      SELECT
+        id,
+        name,
+        email,
+        phone,
+        interest,
+        message,
+        status,
+        created_at,
+        updated_at
+      FROM partnership_interests
+      ORDER BY created_at DESC
+    `;
+
+    const partnerships =
+      rows as PartnershipInterest[];
 
     return NextResponse.json({
       success: true,
       user: {
         email: session.email,
       },
-      data: rows,
+      data: partnerships,
     });
   } catch {
     return NextResponse.json(
@@ -152,17 +144,16 @@ export async function PATCH(
       );
     }
 
-    const partnership = db
-      .prepare(
-        `
-          SELECT
-            id,
-            status
-          FROM partnership_interests
-          WHERE id = ?
-        `,
-      )
-      .get(partnershipId) as
+    const partnershipRows = await sql`
+      SELECT
+        id,
+        status
+      FROM partnership_interests
+      WHERE id = ${partnershipId}
+      LIMIT 1
+    `;
+
+    const partnership = partnershipRows[0] as
       | {
           id: string;
           status: string;
@@ -195,52 +186,37 @@ export async function PATCH(
     }
 
     const now = Date.now();
+    const historyId = randomUUID();
 
-    const updateStatus = db.transaction(() => {
-      db.prepare(
-        `
-          UPDATE partnership_interests
-          SET
-            status = ?,
-            updated_at = ?
-          WHERE id = ?
-        `,
-      ).run(
-        newStatus,
-        now,
-        partnershipId,
-      );
+    const transactionRows = await sql.transaction([
+      sql`
+        UPDATE partnership_interests
+        SET
+          status = ${newStatus},
+          updated_at = ${now}
+        WHERE id = ${partnershipId}
+      `,
+      sql`
+        INSERT INTO partnership_status_history (
+          id,
+          partnership_id,
+          previous_status,
+          new_status,
+          changed_by,
+          created_at
+        )
+        VALUES (
+          ${historyId},
+          ${partnershipId},
+          ${previousStatus},
+          ${newStatus},
+          ${session.email},
+          ${now}
+        )
+      `,
+    ]);
 
-      db.prepare(
-        `
-          INSERT INTO partnership_status_history (
-            id,
-            partnership_id,
-            previous_status,
-            new_status,
-            changed_by,
-            created_at
-          )
-          VALUES (
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?
-          )
-        `,
-      ).run(
-        crypto.randomUUID(),
-        partnershipId,
-        previousStatus,
-        newStatus,
-        session.email,
-        now,
-      );
-    });
-
-    updateStatus();
+    void transactionRows;
 
     return NextResponse.json({
       success: true,

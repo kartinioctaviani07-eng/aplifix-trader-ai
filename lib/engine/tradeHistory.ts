@@ -1,4 +1,4 @@
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 
 export type TradeRecord = {
   id: string;
@@ -41,8 +41,7 @@ function mapRowToTrade(
     exitPrice: row.exit_price,
     quantity: row.quantity,
     profit: row.profit,
-    profitPercent:
-      row.profit_percent,
+    profitPercent: row.profit_percent,
     result: row.result,
     openedAt: row.opened_at,
     closedAt: row.closed_at,
@@ -52,12 +51,45 @@ function mapRowToTrade(
 }
 
 class TradeHistory {
-  add(
+  async add(
     trade: TradeRecord
-  ): void {
-    db.prepare(
-      `
-        INSERT INTO trades (
+  ): Promise<void> {
+    await sql`
+      INSERT INTO trades (
+        id,
+        symbol,
+        side,
+        entry_price,
+        exit_price,
+        quantity,
+        profit,
+        profit_percent,
+        result,
+        opened_at,
+        closed_at,
+        decision_id
+      )
+      VALUES (
+        ${trade.id},
+        ${trade.symbol},
+        ${trade.side},
+        ${trade.entryPrice},
+        ${trade.exitPrice},
+        ${trade.quantity},
+        ${trade.profit},
+        ${trade.profitPercent},
+        ${trade.result},
+        ${trade.openedAt},
+        ${trade.closedAt},
+        ${trade.decisionId ?? null}
+      )
+    `;
+  }
+
+  async getAll(): Promise<TradeRecord[]> {
+    const rows =
+      (await sql`
+        SELECT
           id,
           symbol,
           side,
@@ -70,83 +102,50 @@ class TradeHistory {
           opened_at,
           closed_at,
           decision_id
-        )
-        VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?
-        )
-      `
-    ).run(
-      trade.id,
-      trade.symbol,
-      trade.side,
-      trade.entryPrice,
-      trade.exitPrice,
-      trade.quantity,
-      trade.profit,
-      trade.profitPercent,
-      trade.result,
-      trade.openedAt,
-      trade.closedAt,
-      trade.decisionId ?? null
-    );
-  }
-
-  getAll(): TradeRecord[] {
-    const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM trades
-            ORDER BY closed_at ASC
-          `
-        )
-        .all() as TradeRow[];
+        FROM trades
+        ORDER BY closed_at ASC
+      `) as TradeRow[];
 
     return rows.map(
       mapRowToTrade
     );
   }
 
-  getLatest():
-    | TradeRecord
-    | undefined {
-    const row =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM trades
-            ORDER BY closed_at DESC
-            LIMIT 1
-          `
-        )
-        .get() as
-        | TradeRow
-        | undefined;
+  async getLatest():
+    Promise<
+      TradeRecord | undefined
+    > {
+    const rows =
+      (await sql`
+        SELECT
+          id,
+          symbol,
+          side,
+          entry_price,
+          exit_price,
+          quantity,
+          profit,
+          profit_percent,
+          result,
+          opened_at,
+          closed_at,
+          decision_id
+        FROM trades
+        ORDER BY closed_at DESC
+        LIMIT 1
+      `) as TradeRow[];
+
+    const row = rows[0];
 
     return row
       ? mapRowToTrade(row)
       : undefined;
   }
 
-  clear(): void {
-    db.prepare(
-      `
-        DELETE FROM trades
-      `
-    ).run();
+  async clear(): Promise<void> {
+    await sql`
+      DELETE FROM trades
+    `;
   }
 }
 

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { getMemberSession } from "@/lib/member/session";
+
 import { demoMonitor } from "@/lib/member/demoMonitor";
 
 interface MemberAccountRow {
@@ -62,7 +64,20 @@ interface AIActivityRow {
   created_at: number;
 }
 
-function parseReasons(value: string): string[] {
+function parseReasons(
+  value: unknown,
+): string[] {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is string =>
+        typeof item === "string",
+    );
+  }
+
+  if (typeof value !== "string") {
+    return [];
+  }
+
   try {
     const parsed: unknown =
       JSON.parse(value);
@@ -98,18 +113,21 @@ export async function GET() {
       );
     }
 
-    const member = db
-      .prepare(`
+    const memberRows =
+      await sql`
         SELECT
           id,
           role,
           status
         FROM member_accounts
-        WHERE id = ?
-      `)
-      .get(
-        session.memberId,
-      ) as MemberAccountRow | undefined;
+        WHERE id = ${session.memberId}
+        LIMIT 1
+      `;
+
+    const member =
+      memberRows[0] as
+        | MemberAccountRow
+        | undefined;
 
     if (!member) {
       return NextResponse.json(
@@ -141,8 +159,8 @@ export async function GET() {
         member.id,
       );
 
-    const account = db
-      .prepare(`
+    const accountRows =
+      await sql`
         SELECT
           id,
           initial_balance,
@@ -150,13 +168,16 @@ export async function GET() {
           created_at,
           updated_at
         FROM demo_accounts
-        WHERE member_id = ?
-      `)
-      .get(
-        member.id,
-      ) as DemoAccountRow | undefined;
+        WHERE member_id = ${member.id}
+        LIMIT 1
+      `;
 
-    if (!account) {
+    const rawAccount =
+      accountRows[0] as
+        | DemoAccountRow
+        | undefined;
+
+    if (!rawAccount) {
       return NextResponse.json(
         {
           success: false,
@@ -167,8 +188,24 @@ export async function GET() {
       );
     }
 
-    const positions = db
-      .prepare(`
+    const account: DemoAccountRow = {
+      id: rawAccount.id,
+      initial_balance: Number(
+        rawAccount.initial_balance,
+      ),
+      balance: Number(
+        rawAccount.balance,
+      ),
+      created_at: Number(
+        rawAccount.created_at,
+      ),
+      updated_at: Number(
+        rawAccount.updated_at,
+      ),
+    };
+
+    const positionRows =
+      await sql`
         SELECT
           id,
           symbol,
@@ -181,45 +218,101 @@ export async function GET() {
           opened_at,
           updated_at
         FROM member_demo_positions
-        WHERE member_id = ?
+        WHERE member_id = ${member.id}
           AND status = 'OPEN'
         ORDER BY opened_at DESC
-      `)
-      .all(
-        member.id,
-      ) as PositionRow[];
+      `;
 
-    const trades = db
-      .prepare(`
+    const positions: PositionRow[] =
+      positionRows.map(
+        (row) => {
+          const position =
+            row as unknown as PositionRow;
+
+          return {
+            id: position.id,
+            symbol: position.symbol,
+            side: position.side,
+            quantity: Number(
+              position.quantity,
+            ),
+            entry_price: Number(
+              position.entry_price,
+            ),
+            current_price: Number(
+              position.current_price,
+            ),
+            unrealized_pnl: Number(
+              position.unrealized_pnl,
+            ),
+            status: "OPEN",
+            opened_at: Number(
+              position.opened_at,
+            ),
+            updated_at: Number(
+              position.updated_at,
+            ),
+          };
+        },
+      );
+
+    const tradeRows =
+      await sql`
         SELECT
-          id,
-          position_id,
-          symbol,
-          side,
-          quantity,
-          price,
-          realized_pnl,
-          created_at,
+          t.id,
+          t.position_id,
+          t.symbol,
+          t.side,
+          t.quantity,
+          t.price,
+          t.realized_pnl,
+          t.created_at,
           CASE
-            WHEN position_id IS NULL THEN 'OPEN'
-            WHEN created_at = (
+            WHEN t.position_id IS NULL
+              THEN 'OPEN'
+            WHEN t.created_at = (
               SELECT MIN(t2.created_at)
               FROM member_demo_trades t2
-              WHERE
-                t2.position_id =
-                  member_demo_trades.position_id
+              WHERE t2.position_id = t.position_id
             )
-            THEN 'OPEN'
+              THEN 'OPEN'
             ELSE 'CLOSE'
           END AS trade_type
-        FROM member_demo_trades
-        WHERE member_id = ?
-        ORDER BY created_at DESC
+        FROM member_demo_trades t
+        WHERE t.member_id = ${member.id}
+        ORDER BY t.created_at DESC
         LIMIT 50
-      `)
-      .all(
-        member.id,
-      ) as TradeRow[];
+      `;
+
+    const trades: TradeRow[] =
+      tradeRows.map(
+        (row) => {
+          const trade =
+            row as unknown as TradeRow;
+
+          return {
+            id: trade.id,
+            position_id:
+              trade.position_id,
+            symbol: trade.symbol,
+            side: trade.side,
+            quantity: Number(
+              trade.quantity,
+            ),
+            price: Number(
+              trade.price,
+            ),
+            realized_pnl: Number(
+              trade.realized_pnl,
+            ),
+            created_at: Number(
+              trade.created_at,
+            ),
+            trade_type:
+              trade.trade_type,
+          };
+        },
+      );
 
     /*
      * AI Activity Log
@@ -230,8 +323,9 @@ export async function GET() {
      * Tidak ada AI internal member lain yang
      * ikut dikirim ke browser.
      */
-    const aiActivity = db
-      .prepare(`
+
+    const activityRows =
+      await sql`
         SELECT
           id,
           symbol,
@@ -247,13 +341,50 @@ export async function GET() {
           decision_id,
           created_at
         FROM ai_activity_logs
-        WHERE member_id = ?
+        WHERE member_id = ${member.id}
         ORDER BY created_at DESC
         LIMIT 50
-      `)
-      .all(
-        member.id,
-      ) as AIActivityRow[];
+      `;
+
+    const aiActivity: AIActivityRow[] =
+      activityRows.map(
+        (row) => {
+          const activity =
+            row as unknown as AIActivityRow;
+
+          return {
+            id: activity.id,
+            symbol:
+              activity.symbol,
+            action:
+              activity.action,
+            confidence: Number(
+              activity.confidence,
+            ),
+            total_score: Number(
+              activity.total_score,
+            ),
+            price: Number(
+              activity.price,
+            ),
+            risk_level:
+              activity.risk_level,
+            trend:
+              activity.trend,
+            reasons:
+              activity.reasons,
+            execution_status:
+              activity.execution_status,
+            execution_reason:
+              activity.execution_reason,
+            decision_id:
+              activity.decision_id,
+            created_at: Number(
+              activity.created_at,
+            ),
+          };
+        },
+      );
 
     const unrealizedPnl =
       positions.reduce(
@@ -358,6 +489,7 @@ export async function GET() {
         /*
          * Activity AI yang aman untuk Member.
          */
+
         aiActivity:
           aiActivity.map(
             (activity) => ({

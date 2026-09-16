@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { getMemberSession } from "@/lib/member/session";
+
 import { demoOrchestrator } from "@/lib/member/demoOrchestrator";
 
 interface MemberAccount {
@@ -10,6 +12,11 @@ interface MemberAccount {
   email: string;
   role: string;
   status: string;
+}
+
+interface DemoAccount {
+  id: string;
+  balance: number;
 }
 
 export async function POST() {
@@ -28,8 +35,8 @@ export async function POST() {
       );
     }
 
-    const member =
-      db.prepare(`
+    const memberRows =
+      await sql`
         SELECT
           id,
           name,
@@ -37,11 +44,14 @@ export async function POST() {
           role,
           status
         FROM member_accounts
-        WHERE id = ?
+        WHERE id = ${session.memberId}
         LIMIT 1
-      `).get(
-        session.memberId,
-      ) as MemberAccount | undefined;
+      `;
+
+    const member =
+      memberRows[0] as
+        | MemberAccount
+        | undefined;
 
     if (!member) {
       return NextResponse.json(
@@ -80,21 +90,19 @@ export async function POST() {
       );
     }
 
-    const demoAccount =
-      db.prepare(`
+    const demoAccountRows =
+      await sql`
         SELECT
           id,
           balance
         FROM demo_accounts
-        WHERE member_id = ?
+        WHERE member_id = ${member.id}
         LIMIT 1
-      `).get(
-        member.id,
-      ) as
-        | {
-            id: string;
-            balance: number;
-          }
+      `;
+
+    const demoAccount =
+      demoAccountRows[0] as
+        | DemoAccount
         | undefined;
 
     if (!demoAccount) {

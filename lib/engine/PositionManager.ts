@@ -1,4 +1,4 @@
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 
 export type PositionSide =
   | "BUY"
@@ -56,180 +56,179 @@ function mapRowToPosition(
 }
 
 class PositionManager {
-  openPosition(
+  async openPosition(
     position: Position
-  ): boolean {
-    if (
-      this.hasOpenPosition(
-        position.symbol
-      )
-    ) {
+  ): Promise<boolean> {
+    try {
+      const rows =
+        await sql`
+          INSERT INTO positions (
+            id,
+            symbol,
+            side,
+            entry_price,
+            current_price,
+            quantity,
+            stop_loss,
+            take_profit,
+            opened_at,
+            status,
+            decision_id
+          )
+          VALUES (
+            ${position.id},
+            ${position.symbol},
+            ${position.side},
+            ${position.entryPrice},
+            ${position.currentPrice},
+            ${position.quantity},
+            ${position.stopLoss},
+            ${position.takeProfit},
+            ${position.openedAt},
+            ${position.status},
+            ${position.decisionId ?? null}
+          )
+          ON CONFLICT DO NOTHING
+          RETURNING id
+        `;
+
+      return rows.length > 0;
+    } catch {
       return false;
     }
-
-    db.prepare(
-      `
-        INSERT INTO positions (
-          id,
-          symbol,
-          side,
-          entry_price,
-          current_price,
-          quantity,
-          stop_loss,
-          take_profit,
-          opened_at,
-          status,
-          decision_id
-        )
-        VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?
-        )
-      `
-    ).run(
-      position.id,
-      position.symbol,
-      position.side,
-      position.entryPrice,
-      position.currentPrice,
-      position.quantity,
-      position.stopLoss,
-      position.takeProfit,
-      position.openedAt,
-      position.status,
-      position.decisionId ?? null
-    );
-
-    return true;
   }
 
-  hasOpenPosition(
+  async hasOpenPosition(
     symbol: string
-  ): boolean {
-    const row =
-      db
-        .prepare(
-          `
-            SELECT id
-            FROM positions
-            WHERE symbol = ?
-              AND status = 'OPEN'
-            LIMIT 1
-          `
-        )
-        .get(symbol);
+  ): Promise<boolean> {
+    const rows =
+      await sql`
+        SELECT id
+        FROM positions
+        WHERE symbol = ${symbol}
+          AND status = 'OPEN'
+        LIMIT 1
+      `;
 
-    return row !== undefined;
+    return rows.length > 0;
   }
 
-  getPosition(
+  async getPosition(
     symbol: string
-  ): Position | null {
-    const row =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM positions
-            WHERE symbol = ?
-              AND status = 'OPEN'
-            LIMIT 1
-          `
-        )
-        .get(symbol) as
-        | PositionRow
-        | undefined;
+  ): Promise<Position | null> {
+    const rows =
+      (
+        await sql`
+          SELECT
+            id,
+            symbol,
+            side,
+            entry_price,
+            current_price,
+            quantity,
+            stop_loss,
+            take_profit,
+            opened_at,
+            status,
+            decision_id
+          FROM positions
+          WHERE symbol = ${symbol}
+            AND status = 'OPEN'
+          LIMIT 1
+        `
+      ) as PositionRow[];
+
+    const row = rows[0];
 
     return row
       ? mapRowToPosition(row)
       : null;
   }
 
-  canOpenPosition(
+  async canOpenPosition(
     symbol: string
-  ): boolean {
-    return !this.hasOpenPosition(
+  ): Promise<boolean> {
+    return !(await this.hasOpenPosition(
       symbol
-    );
+    ));
   }
 
-  updatePrice(
+  async updatePrice(
     symbol: string,
     price: number
-  ): void {
-    db.prepare(
-      `
-        UPDATE positions
-        SET current_price = ?
-        WHERE symbol = ?
-          AND status = 'OPEN'
-      `
-    ).run(
-      price,
-      symbol
-    );
+  ): Promise<void> {
+    await sql`
+      UPDATE positions
+      SET current_price = ${price}
+      WHERE symbol = ${symbol}
+        AND status = 'OPEN'
+    `;
   }
 
-  closePosition(
+  async closePosition(
     id: string
-  ): void {
-    db.prepare(
-      `
-        UPDATE positions
-        SET status = 'CLOSED'
-        WHERE id = ?
-      `
-    ).run(id);
+  ): Promise<void> {
+    await sql`
+      UPDATE positions
+      SET status = 'CLOSED'
+      WHERE id = ${id}
+    `;
   }
 
-  removeClosedPosition(): void {
-    db.prepare(
-      `
-        DELETE FROM positions
-        WHERE status = 'CLOSED'
-      `
-    ).run();
+  async removeClosedPosition(): Promise<void> {
+    await sql`
+      DELETE FROM positions
+      WHERE status = 'CLOSED'
+    `;
   }
 
-  getOpenPositions(): Position[] {
+  async getOpenPositions(): Promise<Position[]> {
     const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM positions
-            WHERE status = 'OPEN'
-            ORDER BY opened_at ASC
-          `
-        )
-        .all() as PositionRow[];
+      (
+        await sql`
+          SELECT
+            id,
+            symbol,
+            side,
+            entry_price,
+            current_price,
+            quantity,
+            stop_loss,
+            take_profit,
+            opened_at,
+            status,
+            decision_id
+          FROM positions
+          WHERE status = 'OPEN'
+          ORDER BY opened_at ASC
+        `
+      ) as PositionRow[];
 
     return rows.map(
       mapRowToPosition
     );
   }
 
-  getAllPositions(): Position[] {
+  async getAllPositions(): Promise<Position[]> {
     const rows =
-      db
-        .prepare(
-          `
-            SELECT *
-            FROM positions
-            ORDER BY opened_at ASC
-          `
-        )
-        .all() as PositionRow[];
+      (
+        await sql`
+          SELECT
+            id,
+            symbol,
+            side,
+            entry_price,
+            current_price,
+            quantity,
+            stop_loss,
+            take_profit,
+            opened_at,
+            status,
+            decision_id
+          FROM positions
+          ORDER BY opened_at ASC
+        `
+      ) as PositionRow[];
 
     return rows.map(
       mapRowToPosition

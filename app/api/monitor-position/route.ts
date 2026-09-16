@@ -44,7 +44,7 @@ export async function POST(
 
 
   const result =
-    monitorPositions({
+    await monitorPositions({
       symbol,
       price,
       high: price,

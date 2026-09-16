@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { randomUUID } from "node:crypto";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 import { getOfficeSession } from "@/lib/office/session";
 
 type ReviewAction = "APPROVE" | "REJECT";
@@ -15,6 +16,10 @@ type PaymentRow = {
 type MemberRow = {
   id: string;
   status: string;
+};
+
+type UpdatedPaymentRow = {
+  member_id: string;
 };
 
 function isReviewAction(
@@ -88,192 +93,179 @@ export async function POST(
       );
     }
 
-    const result = db.transaction(() => {
-      const payment = db
-        .prepare(
-          `
-            SELECT
-              id,
-              member_id,
-              status
-            FROM member_payments
-            WHERE id = ?
-            LIMIT 1
-          `,
-        )
-        .get(paymentId) as
-        | PaymentRow
-        | undefined;
+    const paymentRows = await sql`
+      SELECT
+        id,
+        member_id,
+        status
+      FROM member_payments
+      WHERE id = ${paymentId}
+      LIMIT 1
+    `;
 
-      if (!payment) {
-        return {
-          success: false as const,
-          status: 404,
-          message:
-            "Data pembayaran tidak ditemukan.",
-        };
-      }
+    const payment =
+      paymentRows[0] as PaymentRow | undefined;
 
-      const member = db
-        .prepare(
-          `
-            SELECT
-              id,
-              status
-            FROM member_accounts
-            WHERE id = ?
-            LIMIT 1
-          `,
-        )
-        .get(payment.member_id) as
-        | MemberRow
-        | undefined;
-
-      if (!member) {
-        return {
-          success: false as const,
-          status: 404,
-          message:
-            "Data Member tidak ditemukan.",
-        };
-      }
-
-      if (payment.status !== "PENDING") {
-        return {
-          success: false as const,
-          status: 409,
-          message:
-            "Pembayaran ini sudah pernah diproses.",
-        };
-      }
-
-      const now = Date.now();
-
-      if (action === "REJECT") {
-        db.prepare(
-          `
-            UPDATE member_payments
-            SET
-              status = 'REJECTED',
-              reviewed_at = ?,
-              reviewed_by = ?
-            WHERE id = ?
-              AND status = 'PENDING'
-          `,
-        ).run(
-          now,
-          session.email,
-          paymentId,
-        );
-
-        db.prepare(
-          `
-            UPDATE member_accounts
-            SET
-              status = 'REJECTED',
-              updated_at = ?
-            WHERE id = ?
-          `,
-        ).run(
-          now,
-          member.id,
-        );
-
-        return {
-          success: true as const,
-          action: "REJECT",
-          message:
-            "Pembayaran berhasil ditolak.",
-        };
-      }
-
-      db.prepare(
-        `
-          UPDATE member_payments
-          SET
-            status = 'APPROVED',
-            reviewed_at = ?,
-            reviewed_by = ?
-          WHERE id = ?
-            AND status = 'PENDING'
-        `,
-      ).run(
-        now,
-        session.email,
-        paymentId,
-      );
-
-      db.prepare(
-        `
-          UPDATE member_accounts
-          SET
-            status = 'ACTIVE',
-            updated_at = ?
-          WHERE id = ?
-        `,
-      ).run(
-        now,
-        member.id,
-      );
-
-      const existingDemoAccount = db
-        .prepare(
-          `
-            SELECT id
-            FROM demo_accounts
-            WHERE member_id = ?
-            LIMIT 1
-          `,
-        )
-        .get(member.id) as
-        | { id: string }
-        | undefined;
-
-      if (!existingDemoAccount) {
-        db.prepare(
-          `
-            INSERT INTO demo_accounts (
-              id,
-              member_id,
-              initial_balance,
-              balance,
-              created_at,
-              updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-          `,
-        ).run(
-          randomUUID(),
-          member.id,
-          10000000,
-          10000000,
-          now,
-          now,
-        );
-      }
-
-      return {
-        success: true as const,
-        action: "APPROVE",
-        message:
-          "Pembayaran disetujui. Member telah diaktifkan dan Demo Account tersedia.",
-      };
-    })();
-
-    if (!result.success) {
+    if (!payment) {
       return NextResponse.json(
         {
           success: false,
-          message: result.message,
+          message:
+            "Data pembayaran tidak ditemukan.",
         },
-        { status: result.status },
+        { status: 404 },
+      );
+    }
+
+    const memberRows = await sql`
+      SELECT
+        id,
+        status
+      FROM member_accounts
+      WHERE id = ${payment.member_id}
+      LIMIT 1
+    `;
+
+    const member =
+      memberRows[0] as MemberRow | undefined;
+
+    if (!member) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Data Member tidak ditemukan.",
+        },
+        { status: 404 },
+      );
+    }
+
+    if (payment.status !== "PENDING") {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Pembayaran ini sudah pernah diproses.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const now = Date.now();
+
+    if (action === "REJECT") {
+      const rows = await sql`
+        WITH updated_payment AS (
+          UPDATE member_payments
+          SET
+            status = 'REJECTED',
+            reviewed_at = ${now},
+            reviewed_by = ${session.email}
+          WHERE id = ${paymentId}
+            AND status = 'PENDING'
+          RETURNING member_id
+        ),
+        updated_member AS (
+          UPDATE member_accounts AS member
+          SET
+            status = 'REJECTED',
+            updated_at = ${now}
+          FROM updated_payment
+          WHERE member.id = updated_payment.member_id
+          RETURNING member.id
+        )
+        SELECT member_id
+        FROM updated_payment
+      `;
+
+      const updatedPayment =
+        rows[0] as UpdatedPaymentRow | undefined;
+
+      if (!updatedPayment) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Pembayaran ini sudah pernah diproses.",
+          },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        action: "REJECT",
+        message:
+          "Pembayaran berhasil ditolak.",
+      });
+    }
+
+    const demoAccountId = randomUUID();
+
+    const rows = await sql`
+      WITH updated_payment AS (
+        UPDATE member_payments
+        SET
+          status = 'APPROVED',
+          reviewed_at = ${now},
+          reviewed_by = ${session.email}
+        WHERE id = ${paymentId}
+          AND status = 'PENDING'
+        RETURNING member_id
+      ),
+      updated_member AS (
+        UPDATE member_accounts AS member
+        SET
+          status = 'ACTIVE',
+          updated_at = ${now}
+        FROM updated_payment
+        WHERE member.id = updated_payment.member_id
+        RETURNING member.id
+      ),
+      inserted_demo_account AS (
+        INSERT INTO demo_accounts (
+          id,
+          member_id,
+          initial_balance,
+          balance,
+          created_at,
+          updated_at
+        )
+        SELECT
+          ${demoAccountId},
+          updated_payment.member_id,
+          10000000,
+          10000000,
+          ${now},
+          ${now}
+        FROM updated_payment
+        ON CONFLICT (member_id)
+        DO NOTHING
+        RETURNING id
+      )
+      SELECT member_id
+      FROM updated_payment
+    `;
+
+    const updatedPayment =
+      rows[0] as UpdatedPaymentRow | undefined;
+
+    if (!updatedPayment) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Pembayaran ini sudah pernah diproses.",
+        },
+        { status: 409 },
       );
     }
 
     return NextResponse.json({
       success: true,
-      action: result.action,
-      message: result.message,
+      action: "APPROVE",
+      message:
+        "Pembayaran disetujui. Member telah diaktifkan dan Demo Account tersedia.",
     });
   } catch (error) {
     console.error(

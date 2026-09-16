@@ -10,7 +10,7 @@ export interface ConfidenceResult {
 export function adaptConfidenceFromStats(
   baseConfidence: number,
   wins: number,
-  losses: number
+  losses: number,
 ): ConfidenceResult {
   let bonus = 0;
   let penalty = 0;
@@ -27,8 +27,8 @@ export function adaptConfidenceFromStats(
     0,
     Math.min(
       100,
-      baseConfidence + bonus - penalty
-    )
+      baseConfidence + bonus - penalty,
+    ),
   );
 
   return {
@@ -39,18 +39,18 @@ export function adaptConfidenceFromStats(
   };
 }
 
-export function adaptConfidence(
-  baseConfidence: number
-): ConfidenceResult {
-  const wins =
-    aiMemory.getProfitHistory().length;
+export async function adaptConfidence(
+  baseConfidence: number,
+): Promise<ConfidenceResult> {
+  const profitHistory =
+    await aiMemory.getProfitHistory();
 
-  const losses =
-    aiMemory.getLossHistory().length;
+  const lossHistory =
+    await aiMemory.getLossHistory();
 
   return adaptConfidenceFromStats(
     baseConfidence,
-    wins,
-    losses
+    profitHistory.length,
+    lossHistory.length,
   );
 }

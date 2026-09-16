@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { getOfficeSession } from "@/lib/office/session";
 
 type MemberPaymentRow = {
@@ -33,35 +34,34 @@ export async function GET() {
   }
 
   try {
-    const payments = db
-      .prepare(
-        `
-          SELECT
-            p.id,
-            p.member_id,
-            m.name,
-            m.email,
-            m.status AS member_status,
-            p.amount,
-            p.payment_method,
-            p.proof_path,
-            p.status AS payment_status,
-            p.submitted_at,
-            p.reviewed_at,
-            p.reviewed_by,
-            p.rejection_reason
-          FROM member_payments p
-          INNER JOIN member_accounts m
-            ON m.id = p.member_id
-          ORDER BY
-            CASE
-              WHEN p.status = 'PENDING' THEN 0
-              ELSE 1
-            END,
-            p.submitted_at DESC
-        `,
-      )
-      .all() as MemberPaymentRow[];
+    const paymentRows = await sql`
+      SELECT
+        p.id,
+        p.member_id,
+        m.name,
+        m.email,
+        m.status AS member_status,
+        p.amount,
+        p.payment_method,
+        p.proof_path,
+        p.status AS payment_status,
+        p.submitted_at,
+        p.reviewed_at,
+        p.reviewed_by,
+        p.rejection_reason
+      FROM member_payments p
+      INNER JOIN member_accounts m
+        ON m.id = p.member_id
+      ORDER BY
+        CASE
+          WHEN p.status = 'PENDING' THEN 0
+          ELSE 1
+        END,
+        p.submitted_at DESC
+    `;
+
+    const payments =
+      paymentRows as MemberPaymentRow[];
 
     const pendingCount = payments.filter(
       (payment) =>

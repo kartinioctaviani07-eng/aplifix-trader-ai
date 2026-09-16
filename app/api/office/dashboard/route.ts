@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
 import { getOfficeSession } from "@/lib/office/session";
 
 const PARTNERSHIP_STATUSES = [
@@ -44,34 +44,27 @@ export async function GET() {
   }
 
   try {
-    const totalPartnership = db
-      .prepare(
-        `
-          SELECT COUNT(*) AS count
-          FROM partnership_interests
-        `,
-      )
-      .get() as { count: number };
+    const totalRows = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM partnership_interests
+    `;
 
-    const statusRows = db
-      .prepare(
-        `
-          SELECT
-            status,
-            COUNT(*) AS count
-          FROM partnership_interests
-          GROUP BY status
-        `,
-      )
-      .all() as Array<{
-        status: string;
-        count: number;
-      }>;
+    const totalPartnership =
+      (totalRows[0] as { count: number } | undefined)
+        ?.count ?? 0;
+
+    const statusRows = await sql`
+      SELECT
+        status,
+        COUNT(*)::int AS count
+      FROM partnership_interests
+      GROUP BY status
+    `;
 
     const statusMap = new Map(
       statusRows.map((row) => [
-        row.status,
-        row.count,
+        String(row.status),
+        Number(row.count),
       ]),
     );
 
@@ -81,22 +74,21 @@ export async function GET() {
         count: statusMap.get(status) ?? 0,
       }));
 
-    const recentPartnerships = db
-      .prepare(
-        `
-          SELECT
-            id,
-            name,
-            email,
-            interest,
-            status,
-            created_at
-          FROM partnership_interests
-          ORDER BY created_at DESC
-          LIMIT 5
-        `,
-      )
-      .all() as RecentPartnership[];
+    const recentRows = await sql`
+      SELECT
+        id,
+        name,
+        email,
+        interest,
+        status,
+        created_at
+      FROM partnership_interests
+      ORDER BY created_at DESC
+      LIMIT 5
+    `;
+
+    const recentPartnerships =
+      recentRows as RecentPartnership[];
 
     return NextResponse.json({
       success: true,
@@ -104,7 +96,7 @@ export async function GET() {
         email: session.email,
       },
       data: {
-        totalPartnership: totalPartnership.count,
+        totalPartnership,
         statusCounts,
         recentPartnerships,
       },

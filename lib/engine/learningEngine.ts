@@ -6,49 +6,42 @@ import {
   getPerformance,
 } from "./performanceEngine";
 
-export function getLearningData() {
-
+export async function getLearningData() {
   const memory =
-    aiMemory.getAll();
+    await aiMemory.getAll();
 
   const performance =
-    getPerformance();
+    await getPerformance();
 
   const profitHistory =
-    aiMemory.getProfitHistory();
+    await aiMemory.getProfitHistory();
 
   const lossHistory =
-    aiMemory.getLossHistory();
+    await aiMemory.getLossHistory();
 
   let confidenceBonus = 0;
 
   if (
     performance.winRate >= 70
   ) {
-
     confidenceBonus += 5;
-
   }
 
   if (
     performance.totalProfit > 0
   ) {
-
     confidenceBonus += 5;
-
   }
 
   if (
     profitHistory.length >
     lossHistory.length
   ) {
-
     confidenceBonus += 5;
-
   }
 
   const averageConfidence =
-    aiMemory.getAverageConfidence();
+    await aiMemory.getAverageConfidence();
 
   const strongestSetup =
     profitHistory.at(-1);
@@ -57,7 +50,6 @@ export function getLearningData() {
     lossHistory.at(-1);
 
   return {
-
     totalDecision:
       memory.length,
 
@@ -74,23 +66,19 @@ export function getLearningData() {
 
     averageConfidence:
       Number(
-        averageConfidence.toFixed(2)
+        averageConfidence.toFixed(2),
       ),
 
     confidenceBonus,
 
     profitTrade:
-
       profitHistory.length,
 
     lossTrade:
-
       lossHistory.length,
 
     strongestSetup,
 
     weakestSetup,
-
   };
-
 }

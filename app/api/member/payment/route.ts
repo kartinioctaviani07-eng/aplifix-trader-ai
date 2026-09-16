@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { randomUUID } from "node:crypto";
+
 import { mkdir, writeFile } from "node:fs/promises";
+
 import path from "node:path";
 
-import db from "@/lib/db/database";
+import { sql } from "@/lib/db/postgres";
+
 import { getMemberSession } from "@/lib/member/session";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -29,16 +33,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = db
-      .prepare(
-        `
-          SELECT id, status
-          FROM member_accounts
-          WHERE id = ?
-          LIMIT 1
-        `,
-      )
-      .get(session.memberId) as
+    const memberRows = await sql`
+      SELECT id, status
+      FROM member_accounts
+      WHERE id = ${session.memberId}
+      LIMIT 1
+    `;
+
+    const member = memberRows[0] as
       | {
           id: string;
           status: string;
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     const paymentId = randomUUID();
+
     const filename = `${paymentId}.${extension}`;
 
     const directory = path.join(
@@ -142,46 +145,35 @@ export async function POST(request: NextRequest) {
 
     const now = Date.now();
 
-    const transaction = db.transaction(() => {
-      db.prepare(
-        `
-          INSERT INTO member_payments (
-            id,
-            member_id,
-            amount,
-            payment_method,
-            proof_path,
-            status,
-            submitted_at
-          )
-          VALUES (
-            ?, ?, ?, ?, ?, 'PENDING', ?
-          )
-        `,
-      ).run(
-        paymentId,
-        member.id,
-        10000,
-        "BCA",
-        filePath,
-        now,
-      );
-
-      db.prepare(
-        `
-          UPDATE member_accounts
-          SET
-            status = 'PAYMENT_SUBMITTED',
-            updated_at = ?
-          WHERE id = ?
-        `,
-      ).run(
-        now,
-        member.id,
-      );
-    });
-
-    transaction();
+    await sql.transaction([
+      sql`
+        INSERT INTO member_payments (
+          id,
+          member_id,
+          amount,
+          payment_method,
+          proof_path,
+          status,
+          submitted_at
+        )
+        VALUES (
+          ${paymentId},
+          ${member.id},
+          ${10000},
+          ${"BCA"},
+          ${filePath},
+          ${"PENDING"},
+          ${now}
+        )
+      `,
+      sql`
+        UPDATE member_accounts
+        SET
+          status = ${"PAYMENT_SUBMITTED"},
+          updated_at = ${now}
+        WHERE id = ${member.id}
+      `,
+    ]);
 
     return NextResponse.json({
       success: true,
