@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-
 import { sql } from "@/lib/db/postgres";
 import { getOfficeSession } from "@/lib/office/session";
 
@@ -38,7 +37,7 @@ type RecentPartnership = {
   email: string;
   interest: string;
   status: PartnershipStatus;
-  created_at: number;
+  created_at: string | number | Date;
 };
 
 type DashboardData = {
@@ -101,11 +100,22 @@ async function getDashboardData(): Promise<DashboardData> {
   };
 }
 
-function formatDate(timestamp: number): string {
+function formatDate(
+  timestamp: string | number | Date,
+): string {
+  const date =
+    timestamp instanceof Date
+      ? timestamp
+      : new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
   return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(timestamp));
+  }).format(date);
 }
 
 export default async function OfficePage() {
